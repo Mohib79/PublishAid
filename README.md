@@ -2,24 +2,6 @@
 
 **PublishAid** is an AI-driven, end-to-end academic publishing support platform designed to assist researchers with manuscript preparation, venue discovery, author guidelines extraction, document conversion, and pre-submission compliance checking.
 
-This implementation faithfully reproduces all screens and reusable UI specifications from the **Project Proposal & Final Project Report (FAST NUCES Lahore)** and the high-resolution Figma design tokens located in `antigravity/`.
-
----
-
-## 🎨 Design System & Foundations
-* **Color Palette:**
-  - **Deep Teal (Primary):** `#0F766E` (Active: `#0D5E4B`, `#0B4638`)
-  - **Soft Mint (Accent/Highlights):** `#CCFBF1` (Border: `#99F6E4`)
-  - **Dark Navy (Headings/Body):** `#14283D`
-  - **Canvas (Background):** `#F6F8FB`
-  - **Cards & Surfaces:** `#FFFFFF` with `rounded-2xl` (16px border-radius) and subtle borders (`border-slate-200/80`)
-* **Typography:** Inter (8px rhythm, strict hierarchy matching Figure 4.1 - 4.10)
-* **Button Standards:** 42px height, 8px border radius, clear hover/focus/active micro-interactions
-* **Top Bar:** 72px height with breadcrumb navigation, settings, and researcher profile indicator
-* **Sidebar:** 260px expanded / 78px collapsed responsive modes with active mint pill indicators
-
----
-
 ## 🖥️ Implemented Screens & Features
 
 | Screen / Feature | Route | Report Reference | Description |
