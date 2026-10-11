@@ -7,3 +7,6 @@ pgvector
 pydantic-settings
 python-dotenv
 pytest
+pwdlib[argon2]
+PyJWT
+email-validator

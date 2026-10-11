@@ -11,6 +11,7 @@ from app.db.models.conversion_job import ConversionJob
 from app.db.models.compliance_report import ComplianceReport
 from app.db.models.compliance_issue import ComplianceIssue
 
+
 def test_tables_and_extension_exist(db_session, test_engine):
     inspector = inspect(test_engine)
     tables = set(inspector.get_table_names())
@@ -33,12 +34,12 @@ def test_tables_and_extension_exist(db_session, test_engine):
     ).scalar()
     assert ext == "vector"
 
+
 def test_email_case_insensitive_uniqueness(db_session):
     u1 = User(
         full_name="User One",
         email="Author@Domain.com",
         password_hash="hash1",
-        role="researcher",
     )
     db_session.add(u1)
     db_session.flush()
@@ -47,25 +48,26 @@ def test_email_case_insensitive_uniqueness(db_session):
         full_name="User Two",
         email="author@domain.com",
         password_hash="hash2",
-        role="researcher",
     )
     db_session.add(u2)
     with pytest.raises(IntegrityError):
         db_session.flush()
 
-def test_invalid_enum_role(db_session):
-    user = User(
-        full_name="Bad Role",
-        email="badrole@domain.com",
-        password_hash="hash",
-        role="superuser",  # not in ('researcher', 'admin')
+
+def test_invalid_enum_quartile(db_session):
+    journal = Journal(
+        journal_title="Invalid Quartile Journal",
+        publisher="Pub",
+        aims_and_scope="Scope description",
+        quartile="Q5",  # Allowed: Q1, Q2, Q3, Q4
     )
-    db_session.add(user)
+    db_session.add(journal)
     with pytest.raises((IntegrityError, StatementError)):
         db_session.flush()
 
+
 def test_duplicate_project_journal(db_session):
-    user = User(full_name="U", email="u_pj@domain.com", password_hash="h", role="researcher")
+    user = User(full_name="U", email="u_pj@domain.com", password_hash="h")
     db_session.add(user)
     db_session.flush()
 
@@ -87,8 +89,9 @@ def test_duplicate_project_journal(db_session):
     with pytest.raises(IntegrityError):
         db_session.flush()
 
+
 def test_multiple_selected_journals_blocked(db_session):
-    user = User(full_name="U", email="u_sel@domain.com", password_hash="h", role="researcher")
+    user = User(full_name="U", email="u_sel@domain.com", password_hash="h")
     db_session.add(user)
     db_session.flush()
 
@@ -107,8 +110,9 @@ def test_multiple_selected_journals_blocked(db_session):
     with pytest.raises(IntegrityError):
         db_session.flush()
 
+
 def test_user_delete_cascade(db_session):
-    user = User(full_name="Cascade User", email="cascade@test.com", password_hash="h", role="researcher")
+    user = User(full_name="Cascade User", email="cascade@test.com", password_hash="h")
     db_session.add(user)
     db_session.flush()
 
@@ -148,8 +152,9 @@ def test_user_delete_cascade(db_session):
     assert db_session.get(ComplianceReport, rep_id) is None
     assert db_session.get(ComplianceIssue, iss_id) is None
 
+
 def test_journal_delete_restricted_on_project_journal(db_session):
-    user = User(full_name="U", email="restr@test.com", password_hash="h", role="researcher")
+    user = User(full_name="U", email="restr@test.com", password_hash="h")
     db_session.add(user)
     db_session.flush()
 
@@ -166,8 +171,9 @@ def test_journal_delete_restricted_on_project_journal(db_session):
     with pytest.raises(IntegrityError):
         db_session.flush()
 
+
 def test_journal_delete_set_null_and_cascade(db_session):
-    user = User(full_name="U", email="setnull@test.com", password_hash="h", role="researcher")
+    user = User(full_name="U", email="setnull@test.com", password_hash="h")
     db_session.add(user)
     db_session.flush()
 
@@ -210,7 +216,6 @@ def test_journal_delete_set_null_and_cascade(db_session):
     assert db_session.get(ConversionJob, job_id).source_journal_id is None
 
 
-
 def test_guideline_rules_json_object_check(db_session):
     # Valid JSON object works
     valid_rule = GuidelineRule(rules={"max_words": 5000})
@@ -224,6 +229,7 @@ def test_guideline_rules_json_object_check(db_session):
             text("INSERT INTO guideline_rules (rules) VALUES ('[1, 2, 3]'::jsonb);")
         )
         db_session.flush()
+
 
 def test_vector_roundtrip_and_dimension(db_session):
     vector_768 = [0.01 * (i % 10) for i in range(768)]
@@ -249,6 +255,7 @@ def test_vector_roundtrip_and_dimension(db_session):
         )
         db_session.add(bad_j)
         db_session.flush()
+
 
 def test_numeric_check_constraints(db_session):
     with pytest.raises(IntegrityError):
