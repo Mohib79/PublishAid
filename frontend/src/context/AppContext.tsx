@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useState } from 'react';
-import { User, Project, Journal, ConversionJob, TransformationJob, ComplianceReport, ActivityItem } from '../types';
-import { currentUser as initialUser, mockProjects as initialProjects, mockJournals as initialJournals, mockConversionHistory as initialConversions, mockTransformationHistory as initialTransformations, mockComplianceReport as initialReport, mockRecentActivity as initialActivities } from '../data/mockData';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { User, Project, Journal, ConversionJob, TransformationJob, ComplianceReport, ActivityItem, getAvatarInitials, DEFAULT_USER_PLAN } from '../types';
+import { mockProjects as initialProjects, mockJournals as initialJournals, mockConversionHistory as initialConversions, mockTransformationHistory as initialTransformations, mockComplianceReport as initialReport, mockRecentActivity as initialActivities } from '../data/mockData';
+import { getMe, clearStoredToken, getStoredToken } from '../lib/api';
 
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
+  isAuthLoading: boolean;
   isSidebarCollapsed: boolean;
   toggleSidebar: () => void;
   projects: Project[];
@@ -29,7 +31,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(initialUser);
+  const [user, setUserState] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [activeProjectId, setActiveProjectId] = useState<string>('proj_01');
@@ -140,8 +143,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ]);
   };
 
+  useEffect(() => {
+    const token = getStoredToken();
+    if (!token) {
+      setUserState(null);
+      setIsAuthLoading(false);
+      return;
+    }
+
+    getMe()
+      .then((userData) => {
+        setUserState({
+          ...userData,
+          avatarInitials: userData.avatarInitials || getAvatarInitials(userData.fullName),
+          plan: userData.plan || DEFAULT_USER_PLAN,
+          role: userData.role || 'Researcher',
+        });
+      })
+      .catch(() => {
+        clearStoredToken();
+        setUserState(null);
+      })
+      .finally(() => {
+        setIsAuthLoading(false);
+      });
+  }, []);
+
+  const setUser = (newUser: User | null) => {
+    if (newUser) {
+      setUserState({
+        ...newUser,
+        avatarInitials: newUser.avatarInitials || getAvatarInitials(newUser.fullName),
+        plan: newUser.plan || DEFAULT_USER_PLAN,
+        role: newUser.role || 'Researcher',
+      });
+    } else {
+      setUserState(null);
+    }
+  };
+
   const logout = () => {
-    setUser(null);
+    clearStoredToken();
+    setUserState(null);
   };
 
   return (
@@ -149,6 +192,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         user,
         setUser,
+        isAuthLoading,
         isSidebarCollapsed,
         toggleSidebar,
         projects,

@@ -1,12 +1,20 @@
-export type UserRole = 'Researcher' | 'Admin';
-
 export interface User {
   id: string;
   fullName: string;
   email: string;
-  role: UserRole;
-  plan: string;
-  avatarInitials: string;
+  avatarInitials?: string;
+  plan?: string;
+  role?: string;
+}
+
+export const DEFAULT_USER_PLAN = 'Pro plan';
+
+export function getAvatarInitials(fullName: string): string {
+  if (!fullName) return 'U';
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'U';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export type ProjectStatus = 'Draft' | 'Formatting' | 'Needs review' | 'Ready to submit';
