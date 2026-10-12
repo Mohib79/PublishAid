@@ -10,6 +10,7 @@ import {
   ArrowLeftRight,
   FileText,
   ShieldCheck,
+  Library,
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
@@ -23,6 +24,7 @@ export const Sidebar: React.FC = () => {
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Projects', path: '/projects', icon: FolderKanban },
+    { label: 'Browse Journals', path: '/browse', icon: Library },
     { label: 'Journal Finder', path: '/finder', icon: Search },
     { label: 'Compare Journals', path: '/compare', icon: BookOpen },
     { label: 'Guidelines & Templates', path: '/guidelines', icon: FileSpreadsheet },
