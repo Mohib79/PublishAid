@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User, Journal } from '../types';
 
 // Storing auth token in localStorage.
 // Security note: Acknowledged XSS tradeoff for this project environment.
@@ -21,6 +21,28 @@ export interface RegisterPayload {
 export interface LoginPayload {
   email: string;
   password: string;
+}
+
+export interface BrowseJournalsParams {
+  search?: string;
+  category?: string;
+  quartile?: string;
+  publisher?: string;
+  openAccessType?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface BrowseJournalsResponse {
+  items: Journal[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  categories: string[];
+  publishers: string[];
 }
 
 export function getStoredToken(): string | null {
@@ -120,4 +142,25 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
 
 export async function getMe(): Promise<User> {
   return apiRequest<User>('/auth/me', { method: 'GET' }, true);
+}
+
+export async function browseJournals(params: BrowseJournalsParams = {}): Promise<BrowseJournalsResponse> {
+  const query = new URLSearchParams();
+  if (params.search && params.search.trim()) query.set('search', params.search.trim());
+  if (params.category && params.category !== 'all') query.set('category', params.category);
+  if (params.quartile && params.quartile !== 'all') query.set('quartile', params.quartile);
+  if (params.publisher && params.publisher !== 'all') query.set('publisher', params.publisher);
+  if (params.openAccessType && params.openAccessType !== 'all') query.set('open_access_type', params.openAccessType);
+  if (params.sortBy) query.set('sort_by', params.sortBy);
+  if (params.sortOrder) query.set('sort_order', params.sortOrder);
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+
+  const qs = query.toString();
+  const endpoint = `/journals/browse${qs ? `?${qs}` : ''}`;
+  return apiRequest<BrowseJournalsResponse>(endpoint, { method: 'GET' }, true);
+}
+
+export async function getJournalById(journalId: string | number): Promise<Journal> {
+  return apiRequest<Journal>(`/journals/${journalId}`, { method: 'GET' }, true);
 }
