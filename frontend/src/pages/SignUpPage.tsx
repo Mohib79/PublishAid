@@ -4,46 +4,75 @@ import { Eye, EyeOff, ArrowRight, BookOpen, Check, FileText } from 'lucide-react
 import { PublishAidLogo } from '../components/common/PublishAidLogo';
 import { Button } from '../components/common/Button';
 import { useApp } from '../context/AppContext';
-import { UserRole } from '../types';
+import { register } from '../lib/api';
+
+function computePasswordStrength(pwd: string): { score: number; label: string; color: string } {
+  if (!pwd) return { score: 0, label: '', color: 'text-slate-400' };
+
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (/\d/.test(pwd)) score++;
+  if (/[!@#$%^&*(),.?":{}|<>_~`\-+=\\[\]/]/.test(pwd)) score++;
+  if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++;
+
+  switch (score) {
+    case 1:
+      return { score: 1, label: 'Weak', color: 'text-red-500' };
+    case 2:
+      return { score: 2, label: 'Fair', color: 'text-amber-500' };
+    case 3:
+      return { score: 3, label: 'Good', color: 'text-teal-600' };
+    case 4:
+      return { score: 4, label: 'Strong', color: 'text-[#0F766E]' };
+    default:
+      return { score: 0, label: 'Too weak', color: 'text-slate-400' };
+  }
+}
 
 export const SignUpPage: React.FC = () => {
   const navigate = useNavigate();
   const { setUser } = useApp();
-  const [fullName, setFullName] = useState('Dr. Maya Chen');
-  const [email, setEmail] = useState('maya.chen@university.edu');
-  const [password, setPassword] = useState('••••••••••••');
-  const [confirmPassword, setConfirmPassword] = useState('••••••••••••');
-  const [role, setRole] = useState<UserRole>('Researcher');
-  const [agreeTerms, setAgreeTerms] = useState(true);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const passwordStrength = computePasswordStrength(password);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agreeTerms) {
-      alert('Please agree to the Terms of Service to continue.');
+    setErrorMessage(null);
+
+    if (password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
       return;
     }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    if (!agreeTerms) {
+      setErrorMessage('Please agree to the Terms of Service to continue.');
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
-      const initials = fullName
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .slice(-2)
-        .toUpperCase();
-      setUser({
-        id: `usr_${Date.now()}`,
-        fullName,
-        email,
-        role,
-        plan: 'Pro plan',
-        avatarInitials: initials || 'MC',
-      });
-      setIsLoading(false);
+    try {
+      const res = await register({ fullName, email, password });
+      setUser(res.user);
       navigate('/dashboard');
-    }, 700);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -116,13 +145,24 @@ export const SignUpPage: React.FC = () => {
 
               {/* Password strength indicator bars */}
               <div className="mt-2 flex items-center gap-1.5">
-                <div className="h-1 flex-1 bg-[#0F766E] rounded-full" />
-                <div className="h-1 flex-1 bg-[#0F766E] rounded-full" />
-                <div className="h-1 flex-1 bg-[#0F766E] rounded-full" />
-                <div className="h-1 flex-1 bg-slate-200 rounded-full" />
+                {[1, 2, 3, 4].map((step) => {
+                  const active = passwordStrength.score >= step;
+                  let barColor = 'bg-slate-200';
+                  if (active) {
+                    if (passwordStrength.score === 1) barColor = 'bg-red-500';
+                    else if (passwordStrength.score === 2) barColor = 'bg-amber-500';
+                    else barColor = 'bg-[#0F766E]';
+                  }
+                  return (
+                    <div
+                      key={step}
+                      className={`h-1 flex-1 rounded-full transition-colors ${barColor}`}
+                    />
+                  );
+                })}
               </div>
-              <p className="text-[11px] text-teal-700 mt-1">
-                Strong · Use 8+ characters, a number and a symbol.
+              <p className={`text-[11px] mt-1 ${passwordStrength.color}`}>
+                {passwordStrength.label ? `${passwordStrength.label} · ` : ''}Must be 8+ characters, with uppercase and lowercase letters, a number, and a symbol.
               </p>
             </div>
 
@@ -148,20 +188,6 @@ export const SignUpPage: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
-                Your role
-              </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="w-full px-4 h-[42px] rounded-xl border border-slate-300 text-sm focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/20 outline-none bg-white transition-all cursor-pointer"
-              >
-                <option value="Researcher">Researcher</option>
-                <option value="Admin">Administrator</option>
-              </select>
-            </div>
-
             <label className="flex items-start gap-2.5 pt-1 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -173,6 +199,12 @@ export const SignUpPage: React.FC = () => {
                 I agree to the Terms of Service and Privacy Policy.
               </span>
             </label>
+
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium">
+                {errorMessage}
+              </div>
+            )}
 
             <Button
               type="submit"

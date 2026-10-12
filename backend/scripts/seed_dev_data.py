@@ -1,11 +1,21 @@
 import os
 import sys
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 from sqlalchemy import select
+from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.db.models.user import User
 from app.db.models.project import Project
 from app.db.models.journal import Journal
 from app.db.models.guideline_rule import GuidelineRule
+
+DEMO_RESEARCHER_PASSWORD = "ResearcherPassword123!"
+
 
 def seed_dev_data():
     app_env = os.getenv("APP_ENV", "development").lower()
@@ -17,7 +27,7 @@ def seed_dev_data():
 
     with SessionLocal() as session:
         try:
-            # 1. Demo Researcher
+            # 1. Demo Researcher with real Argon2 password hash
             researcher_email = "researcher@publishaid.test"
             researcher = session.execute(
                 select(User).where(User.email == researcher_email)
@@ -27,35 +37,18 @@ def seed_dev_data():
                 researcher = User(
                     full_name="Dr. Alex Rivera",
                     email=researcher_email,
-                    password_hash="placeholder_hash_dev_only",
-                    role="researcher",
+                    password_hash=hash_password(DEMO_RESEARCHER_PASSWORD),
                 )
                 session.add(researcher)
                 session.flush()
-                print("[OK] Created demo researcher: researcher@publishaid.test")
+                print(f"[OK] Created demo researcher: {researcher_email} (password: {DEMO_RESEARCHER_PASSWORD})")
             else:
-                print("  Demo researcher already exists.")
-
-            # 2. Demo Admin
-            admin_email = "admin@publishaid.test"
-            admin = session.execute(
-                select(User).where(User.email == admin_email)
-            ).scalar_one_or_none()
-
-            if not admin:
-                admin = User(
-                    full_name="Admin Supervisor",
-                    email=admin_email,
-                    password_hash="placeholder_hash_dev_only",
-                    role="admin",
-                )
-                session.add(admin)
+                # Update password hash to real Argon2 if existing
+                researcher.password_hash = hash_password(DEMO_RESEARCHER_PASSWORD)
                 session.flush()
-                print("[OK] Created demo admin: admin@publishaid.test")
-            else:
-                print("  Demo admin already exists.")
+                print("  Demo researcher already exists (updated password hash).")
 
-            # 3. Demo Project
+            # 2. Demo Project
             proj_title = "Deep Learning Architectures for Automated Manuscript Formatting"
             demo_project = session.execute(
                 select(Project).where(
@@ -80,7 +73,7 @@ def seed_dev_data():
             else:
                 print("  Demo project already exists.")
 
-            # 4. Sample GuidelineRule for a seeded journal
+            # 3. Sample GuidelineRule for a seeded journal
             target_journal = session.execute(
                 select(Journal).limit(1)
             ).scalar_one_or_none()
@@ -141,6 +134,7 @@ def seed_dev_data():
             session.rollback()
             print(f"Error seeding dev data: {e}", file=sys.stderr)
             sys.exit(1)
+
 
 if __name__ == "__main__":
     seed_dev_data()

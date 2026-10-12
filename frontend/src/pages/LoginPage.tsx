@@ -5,29 +5,30 @@ import { PublishAidLogo } from '../components/common/PublishAidLogo';
 import { Button } from '../components/common/Button';
 import { useApp } from '../context/AppContext';
 
+import { login } from '../lib/api';
+
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { setUser } = useApp();
-  const [email, setEmail] = useState('maya.chen@university.edu');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
     setIsLoading(true);
-    setTimeout(() => {
-      setUser({
-        id: 'usr_01',
-        fullName: 'Dr. Maya Chen',
-        email,
-        role: 'Researcher',
-        plan: 'Pro plan',
-        avatarInitials: 'MC',
-      });
-      setIsLoading(false);
+    try {
+      const res = await login({ email, password });
+      setUser(res.user);
       navigate('/dashboard');
-    }, 600);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,6 +98,12 @@ export const LoginPage: React.FC = () => {
                 Forgot password?
               </a>
             </div>
+
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium">
+                {errorMessage}
+              </div>
+            )}
 
             <Button
               type="submit"
