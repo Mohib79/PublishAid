@@ -1,7 +1,13 @@
+import argparse
 import csv
 import sys
 from pathlib import Path
-from sqlalchemy import select
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from sqlalchemy import select, text
 from app.db.session import SessionLocal
 from app.db.models.journal import Journal
 
@@ -23,7 +29,7 @@ def parse_int(val: str) -> int | None:
     except ValueError:
         return None
 
-def seed_journals(csv_path: Path = SEED_CSV_PATH):
+def seed_journals(csv_path: Path = SEED_CSV_PATH, reset: bool = False):
     if not csv_path.exists():
         print(f"Error: CSV file not found at {csv_path}", file=sys.stderr)
         sys.exit(1)
@@ -41,6 +47,10 @@ def seed_journals(csv_path: Path = SEED_CSV_PATH):
 
     with SessionLocal() as session:
         try:
+            if reset:
+                print("Resetting journals table (TRUNCATE CASCADE)...")
+                session.execute(text("TRUNCATE TABLE journals RESTART IDENTITY CASCADE;"))
+                session.flush()
             for idx, row in enumerate(rows, start=1):
                 title = row.get("journal_title", "").strip()
                 publisher = row.get("publisher", "").strip()
@@ -126,4 +136,9 @@ def seed_journals(csv_path: Path = SEED_CSV_PATH):
             sys.exit(1)
 
 if __name__ == "__main__":
-    seed_journals()
+    parser = argparse.ArgumentParser(description="Seed journals from CSV.")
+    parser.add_argument("--reset", action="store_true", help="Wipe/truncate existing journals before inserting")
+    parser.add_argument("--csv", type=Path, default=SEED_CSV_PATH, help="Path to custom CSV file")
+    args = parser.parse_args()
+
+    seed_journals(csv_path=args.csv, reset=args.reset)

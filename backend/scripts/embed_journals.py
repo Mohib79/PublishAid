@@ -1,5 +1,11 @@
 import argparse
 import sys
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 from sqlalchemy import select
 from app.db.session import SessionLocal
 from app.db.models.journal import Journal

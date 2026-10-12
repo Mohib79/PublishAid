@@ -186,3 +186,9 @@ Formatting and guideline specifications are stored in `guideline_rules.rules`:
   ```bash
   python -m scripts.check_db
   ```
+## 8.Update journal table
+To reset current journal table in db and to repopulate with journals in journals.csv 
+run:
+```bash
+python -m scripts.seed_journals
+```
