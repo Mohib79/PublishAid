@@ -10,3 +10,4 @@ pytest
 pwdlib[argon2]
 PyJWT
 email-validator
+httpx
