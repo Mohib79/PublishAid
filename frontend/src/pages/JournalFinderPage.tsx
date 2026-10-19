@@ -40,11 +40,34 @@ export const JournalFinderPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'paste' | 'upload'>('paste');
 
-  // Input states initialized empty or from activeProject (no hardcoded urban-heat defaults)
-  const [title, setTitle] = useState(activeProject?.title || '');
-  const [abstract, setAbstract] = useState(activeProject?.abstract || '');
-  const [keywords, setKeywords] = useState(activeProject?.keywords?.join(', ') || '');
+  // Input states start empty per plan specification (ignoring mock urban-heat project from initial data)
+  const isMockDemoProject =
+    activeProject?.id === 'proj_01' ||
+    activeProject?.title?.toLowerCase().includes('urban green');
+
+  const [title, setTitle] = useState(!isMockDemoProject ? activeProject?.title || '' : '');
+  const [abstract, setAbstract] = useState(!isMockDemoProject ? activeProject?.abstract || '' : '');
+  const [keywords, setKeywords] = useState(
+    !isMockDemoProject ? activeProject?.keywords?.join(', ') || '' : ''
+  );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+
+  const loadSamplePaper = () => {
+    setTitle('Deep Residual Learning for Image Recognition');
+    setAbstract(
+      'Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. We explicitly reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions. Comprehensive empirical evidence shows that these residual networks are easier to optimize and gain accuracy from considerably increased depth.'
+    );
+    setKeywords('deep learning, neural networks, computer vision, residual representations');
+    setValidationError(null);
+  };
+
+  const handleClearForm = () => {
+    setTitle('');
+    setAbstract('');
+    setKeywords('');
+    setUploadedFile(null);
+    setValidationError(null);
+  };
 
   // Search execution states: 'idle' | 'loading' | 'results' | 'error'
   const [searchState, setSearchState] = useState<'idle' | 'loading' | 'results' | 'error'>('idle');
@@ -285,9 +308,31 @@ export const JournalFinderPage: React.FC = () => {
 
           <form onSubmit={handleSearch} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
-                Paper title
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+                  Paper title
+                </label>
+                <div className="flex items-center gap-2.5">
+                  {!title && !abstract && (
+                    <button
+                      type="button"
+                      onClick={loadSamplePaper}
+                      className="text-[11px] font-semibold text-[#0F766E] hover:underline cursor-pointer"
+                    >
+                      + Load CS sample
+                    </button>
+                  )}
+                  {(title || abstract || keywords) && (
+                    <button
+                      type="button"
+                      onClick={handleClearForm}
+                      className="text-[11px] font-medium text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
               <input
                 type="text"
                 value={title}
