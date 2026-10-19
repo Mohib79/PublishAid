@@ -13,6 +13,7 @@ export const TopBar: React.FC = () => {
     const path = location.pathname;
     if (path === '/' || path === '/dashboard') return 'Dashboard';
     if (path.startsWith('/projects')) return 'Projects';
+    if (path.startsWith('/browse')) return 'Browse Journals';
     if (path.startsWith('/finder')) return 'Journal Finder';
     if (path.startsWith('/compare')) return 'Compare Journals';
     if (path.startsWith('/guidelines')) return 'Guidelines & Templates';

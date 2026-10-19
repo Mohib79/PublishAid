@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.journals import router as journals_router
 from app.core.config import settings
 
 app = FastAPI(
@@ -21,6 +22,8 @@ app.add_middleware(
 
 # Include Authentication Router
 app.include_router(auth_router)
+app.include_router(journals_router)
+app.include_router(journals_router, prefix="/api")
 
 
 @app.get("/health", tags=["system"], summary="Service health check")
