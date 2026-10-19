@@ -1,58 +1,114 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Bookmark,
   BookmarkCheck,
   UploadCloud,
-  FileText,
   Info,
   Loader2,
   Check,
   Columns2,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { Journal } from '../types';
+import { matchJournals, createProject, shortlistJournal, unshortlistJournal } from '../lib/api';
+
+/**
+ * Formats numeric metrics safely. Returns "N/A" for null/undefined values without any unit suffix.
+ */
+function formatMetric(val: number | null | undefined, unit = ''): string {
+  if (val == null) return 'N/A';
+  return `${val}${unit ? ` ${unit}` : ''}`;
+}
 
 export const JournalFinderPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     activeProject,
+    setActiveProject,
     journals,
-    toggleShortlistJournal,
+    mergeJournals,
+    setJournalShortlisted,
     selectedCompareJournalIds,
     toggleCompareJournal,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'paste' | 'upload'>('paste');
-  const [title, setTitle] = useState(
-    activeProject?.title || 'Urban green infrastructure and heat resilience'
-  );
-  const [abstract, setAbstract] = useState(
-    activeProject?.abstract ||
-      'We evaluate how urban green infrastructure influences neighborhood heat exposure across 24 cities. Using satellite-derived land surface temperatures and a longitudinal panel model, we find that connected green spaces reduce peak summer temperatures, with the largest benefits in densely built neighborhoods.'
-  );
-  const [keywords, setKeywords] = useState(
-    activeProject?.keywords?.join(', ') || 'urban heat, green infrastructure, resilience'
-  );
+
+  // Input states initialized empty or from activeProject (no hardcoded urban-heat defaults)
+  const [title, setTitle] = useState(activeProject?.title || '');
+  const [abstract, setAbstract] = useState(activeProject?.abstract || '');
+  const [keywords, setKeywords] = useState(activeProject?.keywords?.join(', ') || '');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
-  // States: 'idle' | 'loading' | 'results' | 'error'
-  const [searchState, setSearchState] = useState<'idle' | 'loading' | 'results'>('results');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'environmental' | 'open_access'>('all');
+  // Search execution states: 'idle' | 'loading' | 'results' | 'error'
+  const [searchState, setSearchState] = useState<'idle' | 'loading' | 'results' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() && !abstract.trim() && !uploadedFile) {
-      alert('Please provide a paper title, abstract, or upload a manuscript.');
+  const [matchedJournals, setMatchedJournals] = useState<Journal[]>([]);
+  const [metaInfo, setMetaInfo] = useState<{ tookMs: number; totalJournals: number; model: string } | null>(null);
+
+  // Filter state
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+
+  // Shortlisting concurrency guards
+  const [inFlightShortlistIds, setInFlightShortlistIds] = useState<Set<string>>(new Set());
+  const creatingProjectRef = useRef<boolean>(false);
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setValidationError(null);
+    setErrorMessage(null);
+    setNotificationMessage(null);
+
+    const cleanTitle = title.trim();
+    const cleanAbstract = abstract.trim();
+
+    // Check if user uploaded a file without title and abstract
+    if (!cleanTitle && !cleanAbstract) {
+      if (uploadedFile) {
+        setValidationError(
+          'Manuscript file uploaded. Automated file extraction is coming soon; please paste your title and abstract to find matching journals.'
+        );
+      } else {
+        setValidationError('Please provide a manuscript title or abstract to find matching journals.');
+      }
       return;
     }
+
+    const kwList = keywords
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+
     setSearchState('loading');
-    setTimeout(() => {
+
+    try {
+      const resp = await matchJournals({
+        title: cleanTitle || undefined,
+        abstract: cleanAbstract || undefined,
+        keywords: kwList.length > 0 ? kwList : undefined,
+        projectId: activeProject?.id,
+        limit: 20,
+      });
+
+      setMatchedJournals(resp.results);
+      mergeJournals(resp.results);
+      setMetaInfo(resp.meta);
       setSearchState('results');
-    }, 900);
+    } catch (err: any) {
+      setErrorMessage(
+        err.message || 'Failed to search matching journals. Please check your connection and try again.'
+      );
+      setSearchState('error');
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,17 +116,114 @@ export const JournalFinderPage: React.FC = () => {
       const file = e.target.files[0];
       setUploadedFile(file);
       setTitle(file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
+      setValidationError(null);
+    }
+  };
+
+  const handleToggleShortlist = async (journal: Journal) => {
+    if (inFlightShortlistIds.has(journal.id)) return;
+
+    setValidationError(null);
+    setNotificationMessage(null);
+
+    const isCurrentlyShortlisted = !!journal.isShortlisted;
+    const newShortlistedState = !isCurrentlyShortlisted;
+
+    // Optimistically update card & context state
+    setMatchedJournals((prev) =>
+      prev.map((j) => (j.id === journal.id ? { ...j, isShortlisted: newShortlistedState } : j))
+    );
+    setJournalShortlisted(journal.id, newShortlistedState);
+    setInFlightShortlistIds((prev) => new Set(prev).add(journal.id));
+
+    try {
+      let targetProjectId = activeProject?.id;
+
+      // Auto-project rule: if there is no active project, auto-create one
+      if (!targetProjectId) {
+        if (creatingProjectRef.current) {
+          return;
+        }
+        creatingProjectRef.current = true;
+
+        const cleanTitle = title.trim();
+        const cleanAbstract = abstract.trim();
+
+        // Derivation rule: if title is empty, derive from the first 7 words of abstract
+        let projectTitle = cleanTitle;
+        if (!projectTitle && cleanAbstract) {
+          projectTitle = cleanAbstract.split(/\s+/).slice(0, 7).join(' ') + '...';
+        }
+
+        if (!projectTitle) {
+          throw new Error('Please enter a title or abstract before shortlisting to assign to a project.');
+        }
+
+        const kwList = keywords
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean);
+
+        const newProj = await createProject({
+          title: projectTitle,
+          abstract: cleanAbstract,
+          keywords: kwList,
+        });
+
+        setActiveProject(newProj);
+        targetProjectId = newProj.id;
+        setNotificationMessage(`Created project "${newProj.title}" and shortlisted journal.`);
+        creatingProjectRef.current = false;
+      }
+
+      if (newShortlistedState) {
+        await shortlistJournal(targetProjectId, journal.id, journal.rawSimilarity ?? undefined);
+        if (!notificationMessage) {
+          setNotificationMessage(`Added "${journal.title}" to shortlist.`);
+        }
+      } else {
+        await unshortlistJournal(targetProjectId, journal.id);
+        setNotificationMessage(`Removed "${journal.title}" from shortlist.`);
+      }
+    } catch (err: any) {
+      // Rollback optimistic update
+      setMatchedJournals((prev) =>
+        prev.map((j) => (j.id === journal.id ? { ...j, isShortlisted: isCurrentlyShortlisted } : j))
+      );
+      setJournalShortlisted(journal.id, isCurrentlyShortlisted);
+      setValidationError(err.message || 'Failed to update shortlist.');
+    } finally {
+      creatingProjectRef.current = false;
+      setInFlightShortlistIds((prev) => {
+        const next = new Set(prev);
+        next.delete(journal.id);
+        return next;
+      });
     }
   };
 
   const shortlistedCount = journals.filter((j) => j.isShortlisted).length;
 
-  const filteredJournals = journals.filter((j) => {
-    if (activeFilter === 'environmental') {
-      return j.subjectCategory.toLowerCase().includes('environmental');
-    }
+  // Extract distinct publishers from real matching results
+  const availablePublishers = React.useMemo(() => {
+    const pubSet = new Set<string>();
+    matchedJournals.forEach((j) => {
+      if (j.publisher) pubSet.add(j.publisher);
+    });
+    return Array.from(pubSet).slice(0, 5);
+  }, [matchedJournals]);
+
+  // Client-side filtering
+  const filteredJournals = matchedJournals.filter((j) => {
     if (activeFilter === 'open_access') {
       return j.openAccessType === 'Open access';
+    }
+    if (activeFilter === 'q1') {
+      return j.quartile === 'Q1';
+    }
+    if (activeFilter.startsWith('pub:')) {
+      const pubName = activeFilter.slice(4);
+      return j.publisher === pubName;
     }
     return true;
   });
@@ -165,7 +318,7 @@ export const JournalFinderPage: React.FC = () => {
                 type="text"
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
-                placeholder="e.g. urban climate, sustainability, satellite data"
+                placeholder="e.g. machine learning, computer vision, optimization"
                 className="w-full px-3.5 h-[40px] rounded-xl border border-slate-200 text-sm focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] outline-none transition-all"
               />
             </div>
@@ -192,6 +345,14 @@ export const JournalFinderPage: React.FC = () => {
               </label>
             </div>
 
+            {/* Validation Message Box */}
+            {validationError && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-800">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <span className="leading-snug">{validationError}</span>
+              </div>
+            )}
+
             <Button
               type="submit"
               size="md"
@@ -199,7 +360,7 @@ export const JournalFinderPage: React.FC = () => {
               className="w-full h-[44px] shadow-sm mt-3"
               leftIcon={<Search className="w-4 h-4" />}
             >
-              {searchState === 'loading' ? 'Searching Scopes...' : 'Find Journals'}
+              {searchState === 'loading' ? 'Searching Catalog Scopes...' : 'Find Journals'}
             </Button>
           </form>
 
@@ -210,6 +371,20 @@ export const JournalFinderPage: React.FC = () => {
 
         {/* Right Column (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
+          {/* Notification alert */}
+          {notificationMessage && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-800">
+              <span className="font-medium">{notificationMessage}</span>
+              <button
+                type="button"
+                onClick={() => setNotificationMessage(null)}
+                className="text-emerald-600 hover:text-emerald-900 font-bold ml-2 cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {searchState === 'idle' && (
             <div className="space-y-4">
               <h2 className="text-base font-bold text-[#14283D]">Your journal matches</h2>
@@ -221,10 +396,10 @@ export const JournalFinderPage: React.FC = () => {
                   Your next journal starts here
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500 max-w-sm mt-1.5 leading-relaxed">
-                  Add a title and abstract, or upload a paper to discover relevant journals based on semantic similarity.
+                  Add a title and abstract, or paste your abstract to discover relevant journals based on semantic similarity.
                 </p>
                 <span className="mt-4 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                  No search yet
+                  Ready to search
                 </span>
               </div>
 
@@ -244,8 +419,33 @@ export const JournalFinderPage: React.FC = () => {
                   Analyzing manuscript against indexed scopes...
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  Computing SPECTER semantic embeddings and ranking journals across Scopus and Web of Science.
+                  Computing SPECTER semantic embeddings and ranking journals across our curated catalog.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {searchState === 'error' && (
+            <div className="space-y-4">
+              <h2 className="text-base font-bold text-[#14283D]">Your journal matches</h2>
+              <div className="bg-white rounded-2xl p-12 border border-red-200/80 shadow-2xs flex flex-col items-center justify-center text-center min-h-[380px] space-y-4">
+                <div className="w-14 h-14 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+                  <AlertCircle className="w-8 h-8 stroke-[1.75]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Search Failed</h3>
+                  <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
+                    {errorMessage || 'An error occurred while matching your manuscript. Please try again.'}
+                  </p>
+                </div>
+                <Button
+                  size="md"
+                  variant="primary"
+                  onClick={() => handleSearch()}
+                  leftIcon={<RefreshCw className="w-4 h-4" />}
+                >
+                  Retry Search
+                </Button>
               </div>
             </div>
           )}
@@ -255,13 +455,15 @@ export const JournalFinderPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <h2 className="text-base font-bold text-[#14283D]">Recommended journals</h2>
                 <span className="text-xs text-slate-500 font-medium">
-                  {filteredJournals.length} matches · Best fit first
+                  {filteredJournals.length} matches
+                  {metaInfo ? ` · ${metaInfo.tookMs}ms` : ''} · Best fit first
                 </span>
               </div>
 
-              {/* Filters */}
+              {/* Dynamic Filters */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 <button
+                  type="button"
                   onClick={() => setActiveFilter('all')}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                     activeFilter === 'all'
@@ -269,20 +471,39 @@ export const JournalFinderPage: React.FC = () => {
                       : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  All journals
+                  All journals ({matchedJournals.length})
                 </button>
+
+                {availablePublishers.map((pub) => (
+                  <button
+                    key={pub}
+                    type="button"
+                    onClick={() => setActiveFilter(activeFilter === `pub:${pub}` ? 'all' : `pub:${pub}`)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                      activeFilter === `pub:${pub}`
+                        ? 'bg-[#0F766E] text-white shadow-2xs'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {pub}
+                  </button>
+                ))}
+
                 <button
-                  onClick={() => setActiveFilter('environmental')}
+                  type="button"
+                  onClick={() => setActiveFilter(activeFilter === 'q1' ? 'all' : 'q1')}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                    activeFilter === 'environmental'
+                    activeFilter === 'q1'
                       ? 'bg-[#0F766E] text-white shadow-2xs'
                       : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  Environmental science
+                  Q1 Only
                 </button>
+
                 <button
-                  onClick={() => setActiveFilter('open_access')}
+                  type="button"
+                  onClick={() => setActiveFilter(activeFilter === 'open_access' ? 'all' : 'open_access')}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                     activeFilter === 'open_access'
                       ? 'bg-[#0F766E] text-white shadow-2xs'
@@ -295,107 +516,136 @@ export const JournalFinderPage: React.FC = () => {
 
               {/* Journal Cards */}
               <div className="space-y-3.5">
-                {filteredJournals.map((journal) => {
-                  const isCompared = selectedCompareJournalIds.includes(journal.id);
-                  return (
-                    <div
-                      key={journal.id}
-                      className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all space-y-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3.5">
-                          {/* Circular match badge */}
-                          <div className="w-13 h-13 rounded-full border-2 border-[#0F766E] bg-[#CCFBF1]/30 flex flex-col items-center justify-center shrink-0">
-                            <span className="text-xs font-extrabold text-[#0F766E] leading-none">
-                              {journal.matchScore}%
-                            </span>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-teal-700 mt-0.5">
-                              MATCH
-                            </span>
+                {filteredJournals.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-8 border border-slate-200/80 text-center text-slate-500 text-sm">
+                    No journals match the selected filter.
+                  </div>
+                ) : (
+                  filteredJournals.map((journal) => {
+                    const isCompared = selectedCompareJournalIds.includes(journal.id);
+                    const isInFlight = inFlightShortlistIds.has(journal.id);
+
+                    return (
+                      <div
+                        key={journal.id}
+                        className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3.5">
+                            {/* Circular match badge */}
+                            <div
+                              className="w-13 h-13 rounded-full border-2 border-[#0F766E] bg-[#CCFBF1]/30 flex flex-col items-center justify-center shrink-0"
+                              title={
+                                journal.rawSimilarity != null
+                                  ? `SPECTER Cosine Similarity: ${journal.rawSimilarity.toFixed(4)}`
+                                  : undefined
+                              }
+                            >
+                              <span className="text-xs font-extrabold text-[#0F766E] leading-none">
+                                {journal.matchScore != null ? `${journal.matchScore}%` : '—'}
+                              </span>
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-teal-700 mt-0.5">
+                                MATCH
+                              </span>
+                            </div>
+
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-bold text-base text-[#14283D] leading-snug">
+                                  {journal.title}
+                                </h3>
+                                {journal.matchTag && (
+                                  <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#99F6E4]">
+                                    {journal.matchTag}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                {journal.publisher} · {journal.subjectCategory}
+                              </p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <StatusBadge status={journal.quartile || 'Q1'} />
+                                <StatusBadge status={journal.openAccessType || 'Hybrid'} />
+                              </div>
+                            </div>
                           </div>
 
+                          {/* Bookmark Button */}
+                          <button
+                            type="button"
+                            disabled={isInFlight}
+                            onClick={() => handleToggleShortlist(journal)}
+                            title={journal.isShortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
+                            className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                              journal.isShortlisted
+                                ? 'text-[#0F766E] bg-[#CCFBF1]'
+                                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                            } ${isInFlight ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {journal.isShortlisted ? (
+                              <BookmarkCheck className="w-4 h-4 fill-current stroke-[2]" />
+                            ) : (
+                              <Bookmark className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Scope snippet */}
+                        <p className="text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
+                          {journal.aimsAndScope}
+                        </p>
+
+                        {/* Bottom Bar: Metrics & Actions */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1 border-t border-slate-100 text-xs text-slate-500">
                           <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-bold text-base text-[#14283D] leading-snug">
-                                {journal.title}
-                              </h3>
-                              {journal.matchTag && (
-                                <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#99F6E4]">
-                                  {journal.matchTag}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {journal.publisher} · {journal.subjectCategory}
-                            </p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <StatusBadge status={journal.quartile} />
-                              <StatusBadge status={journal.openAccessType} />
-                            </div>
+                            CiteScore{' '}
+                            <span className="font-semibold text-slate-700">
+                              {formatMetric(journal.citeScore)}
+                            </span>{' '}
+                            · Review{' '}
+                            <span className="font-semibold text-slate-700">
+                              {formatMetric(journal.reviewWeeks, 'weeks')}
+                            </span>{' '}
+                            · Acceptance{' '}
+                            <span className="font-semibold text-slate-700">
+                              {formatMetric(journal.acceptanceRate, '%')}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant={isCompared ? 'mint' : 'secondary'}
+                              onClick={() => toggleCompareJournal(journal.id)}
+                              leftIcon={<Columns2 className="w-3.5 h-3.5" />}
+                            >
+                              {isCompared ? 'Comparing' : 'Compare'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={isInFlight}
+                              variant={journal.isShortlisted ? 'primary' : 'secondary'}
+                              onClick={() => handleToggleShortlist(journal)}
+                              leftIcon={
+                                journal.isShortlisted ? (
+                                  <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Bookmark className="w-3.5 h-3.5" />
+                                )
+                              }
+                            >
+                              {journal.isShortlisted ? 'Shortlisted' : 'Shortlist'}
+                            </Button>
                           </div>
                         </div>
-
-                        {/* Bookmark Button */}
-                        <button
-                          onClick={() => toggleShortlistJournal(journal.id)}
-                          title={journal.isShortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
-                          className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                            journal.isShortlisted
-                              ? 'text-[#0F766E] bg-[#CCFBF1]'
-                              : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                          }`}
-                        >
-                          {journal.isShortlisted ? (
-                            <BookmarkCheck className="w-4 h-4 fill-current stroke-[2]" />
-                          ) : (
-                            <Bookmark className="w-4 h-4" />
-                          )}
-                        </button>
                       </div>
-
-                      {/* Scope snippet */}
-                      <p className="text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-                        {journal.aimsAndScope}
-                      </p>
-
-                      {/* Bottom Bar: Metrics & Actions */}
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1 border-t border-slate-100 text-xs text-slate-500">
-                        <div>
-                          CiteScore <span className="font-semibold text-slate-700">{journal.citeScore}</span> · Review <span className="font-semibold text-slate-700">{journal.reviewWeeks} weeks</span> · Acceptance <span className="font-semibold text-slate-700">{journal.acceptanceRate}%</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant={isCompared ? 'mint' : 'secondary'}
-                            onClick={() => toggleCompareJournal(journal.id)}
-                            leftIcon={<Columns2 className="w-3.5 h-3.5" />}
-                          >
-                            {isCompared ? 'Comparing' : 'Compare'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={journal.isShortlisted ? 'primary' : 'secondary'}
-                            onClick={() => toggleShortlistJournal(journal.id)}
-                            leftIcon={
-                              journal.isShortlisted ? (
-                                <Check className="w-3.5 h-3.5" />
-                              ) : (
-                                <Bookmark className="w-3.5 h-3.5" />
-                              )
-                            }
-                          >
-                            {journal.isShortlisted ? 'Shortlisted' : 'Shortlist'}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
 
               <p className="text-[11px] text-center text-slate-400 pt-2">
-                Illustrative journal profiles and metrics for demonstration; verify details before submission.
+                Curated academic journal profiles and metrics; verify current guidelines before submission.
               </p>
             </div>
           )}

@@ -1,4 +1,4 @@
-import { User, Journal } from '../types';
+import { User, Journal, Project, MatchRequest, MatchResponse, CreateProjectPayload } from '../types';
 
 // Storing auth token in localStorage.
 // Security note: Acknowledged XSS tradeoff for this project environment.
@@ -164,3 +164,52 @@ export async function browseJournals(params: BrowseJournalsParams = {}): Promise
 export async function getJournalById(journalId: string | number): Promise<Journal> {
   return apiRequest<Journal>(`/journals/${journalId}`, { method: 'GET' }, true);
 }
+
+export async function matchJournals(payload: MatchRequest): Promise<MatchResponse> {
+  return apiRequest<MatchResponse>('/journals/match', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function createProject(payload: CreateProjectPayload): Promise<Project> {
+  return apiRequest<Project>('/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function getProjects(): Promise<Project[]> {
+  return apiRequest<Project[]>('/projects', { method: 'GET' }, true);
+}
+
+export async function getProjectById(projectId: string | number): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}`, { method: 'GET' }, true);
+}
+
+export async function shortlistJournal(
+  projectId: string | number,
+  journalId: string | number,
+  similarityScore?: number
+): Promise<Journal> {
+  return apiRequest<Journal>(`/projects/${projectId}/shortlist/${journalId}`, {
+    method: 'PUT',
+    body: JSON.stringify(similarityScore != null ? { similarityScore } : {}),
+  }, true);
+}
+
+export async function unshortlistJournal(
+  projectId: string | number,
+  journalId: string | number
+): Promise<{ success: boolean; projectId: string; journalId: string; isShortlisted: boolean }> {
+  return apiRequest<{ success: boolean; projectId: string; journalId: string; isShortlisted: boolean }>(
+    `/projects/${projectId}/shortlist/${journalId}`,
+    { method: 'DELETE' },
+    true
+  );
+}
+
+export async function getProjectShortlist(projectId: string | number): Promise<Journal[]> {
+  return apiRequest<Journal[]>(`/projects/${projectId}/shortlist`, { method: 'GET' }, true);
+}
+
