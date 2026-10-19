@@ -1,5 +1,11 @@
-from typing import Any
-from pydantic import BaseModel, ConfigDict, model_validator
+from typing import Any, Optional, Union
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 
 
@@ -51,6 +57,69 @@ class JournalItemOut(BaseModel):
                 mapped["citeScore"] = mapped["citescore"]
             return mapped
         return data
+
+
+class MatchJournalItemOut(JournalItemOut):
+    match_score: int
+    raw_similarity: float
+    match_tag: Optional[str] = None
+    is_shortlisted: bool = False
+
+
+class MatchMeta(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+    model: str
+    took_ms: int
+    total_journals: int
+
+
+class MatchResponse(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+    results: list[MatchJournalItemOut]
+    meta: MatchMeta
+
+
+class MatchRequest(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        extra="ignore",
+    )
+
+    title: Optional[str] = Field(None, max_length=300)
+    abstract: Optional[str] = Field(None, max_length=10000)
+    keywords: Optional[Union[list[str], str]] = None
+    limit: int = Field(20, ge=1, le=50)
+    project_id: Optional[Union[int, str]] = None
+
+    @field_validator("keywords", mode="before")
+    @classmethod
+    def normalize_keywords(cls, v: Any) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [k.strip() for k in v.split(",") if k.strip()][:20]
+        if isinstance(v, list):
+            res = []
+            for item in v:
+                if isinstance(item, str) and item.strip():
+                    res.append(item.strip())
+            return res[:20]
+        return []
+
+    @model_validator(mode="after")
+    def validate_content_presence(self) -> "MatchRequest":
+        clean_title = (self.title or "").strip()
+        clean_abstract = (self.abstract or "").strip()
+        if not clean_title and not clean_abstract:
+            raise ValueError("At least one of 'title' or 'abstract' must be provided.")
+        return self
 
 
 class JournalBrowseResponse(BaseModel):

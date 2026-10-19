@@ -279,3 +279,50 @@ def test_numeric_check_constraints(db_session):
         )
         db_session.add(bad_weeks)
         db_session.flush()
+
+
+def test_project_keywords_array(db_session):
+    user = User(full_name="KW User", email="kw_user@domain.com", password_hash="h")
+    db_session.add(user)
+    db_session.flush()
+
+    # Default empty keywords
+    p1 = Project(user_id=user.user_id, project_title="Project Default KW")
+    db_session.add(p1)
+    db_session.flush()
+    db_session.refresh(p1)
+    assert p1.keywords == []
+
+    # Project with explicit keywords
+    p2 = Project(
+        user_id=user.user_id,
+        project_title="Project With KW",
+        keywords=["neural networks", "computer vision", "deep learning"],
+    )
+    db_session.add(p2)
+    db_session.flush()
+    db_session.refresh(p2)
+    assert p2.keywords == ["neural networks", "computer vision", "deep learning"]
+
+
+def test_project_journal_is_shortlisted(db_session):
+    user = User(full_name="Shortlist User", email="sl_user@domain.com", password_hash="h")
+    db_session.add(user)
+    db_session.flush()
+
+    project = Project(user_id=user.user_id, project_title="Shortlist Test Project")
+    journal = Journal(journal_title="Shortlist Target Journal", publisher="P", aims_and_scope="Scope")
+    db_session.add_all([project, journal])
+    db_session.flush()
+
+    pj = ProjectJournal(project_id=project.project_id, journal_id=journal.journal_id)
+    db_session.add(pj)
+    db_session.flush()
+    db_session.refresh(pj)
+    assert pj.is_shortlisted is False
+
+    pj.is_shortlisted = True
+    db_session.flush()
+    db_session.refresh(pj)
+    assert pj.is_shortlisted is True
+

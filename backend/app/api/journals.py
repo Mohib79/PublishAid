@@ -1,14 +1,30 @@
 import math
+import time
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.models.journal import Journal
+from app.db.models.project import Project
+from app.db.models.project_journal import ProjectJournal
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.journal import JournalBrowseResponse, JournalItemOut
+from app.schemas.journal import (
+    JournalBrowseResponse,
+    JournalItemOut,
+    MatchJournalItemOut,
+    MatchMeta,
+    MatchRequest,
+    MatchResponse,
+)
+from app.services.embedding import EmbedderProtocol, get_embedder
+from app.services.matching import (
+    build_query_text,
+    search_matching_journals,
+)
 
 router = APIRouter(prefix="/journals", tags=["journals"])
 
@@ -142,3 +158,96 @@ def get_journal(
         )
 
     return JournalItemOut.model_validate(journal)
+
+
+@router.post(
+    "/match",
+    response_model=MatchResponse,
+    summary="Rank journals by semantic similarity with manuscript title and abstract",
+)
+def match_journals(
+    req: MatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    embedder: EmbedderProtocol = Depends(get_embedder),
+) -> MatchResponse:
+    shortlisted_journal_ids: set[int] = set()
+
+    # Check project ownership if project_id is supplied
+    if req.project_id is not None:
+        try:
+            p_id = int(req.project_id)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found",
+            )
+
+        project = db.execute(
+            select(Project).where(
+                Project.project_id == p_id,
+                Project.user_id == current_user.user_id,
+            )
+        ).scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found",
+            )
+
+        pj_rows = db.execute(
+            select(ProjectJournal.journal_id).where(
+                ProjectJournal.project_id == p_id,
+                ProjectJournal.is_shortlisted.is_(True),
+            )
+        ).scalars().all()
+        shortlisted_journal_ids = set(pj_rows)
+
+    start_time = time.perf_counter()
+
+    # 1. Build SPECTER-aligned query text
+    query_text = build_query_text(
+        title=req.title,
+        abstract=req.abstract,
+        keywords=req.keywords if isinstance(req.keywords, list) else None,
+    )
+
+    # 2. Compute query embedding vector
+    query_vector = embedder.embed_query(query_text)
+
+    # 3. Perform pgvector cosine distance search
+    matched_records = search_matching_journals(
+        query_vector=query_vector,
+        db=db,
+        limit=req.limit,
+    )
+
+    # 4. Count total active embedded journals
+    total_journals = db.execute(
+        select(func.count(Journal.journal_id)).where(Journal.embedding.is_not(None))
+    ).scalar_one()
+
+    took_ms = max(1, int((time.perf_counter() - start_time) * 1000))
+
+    # 5. Format results
+    results: list[MatchJournalItemOut] = []
+    for journal, raw_sim, score, tag in matched_records:
+        is_short = journal.journal_id in shortlisted_journal_ids
+        item_dict = JournalItemOut.model_validate(journal).model_dump(by_alias=True)
+        item_dict.update({
+            "matchScore": score,
+            "rawSimilarity": round(raw_sim, 4),
+            "matchTag": tag,
+            "isShortlisted": is_short,
+        })
+        results.append(MatchJournalItemOut.model_validate(item_dict))
+
+    return MatchResponse(
+        results=results,
+        meta=MatchMeta(
+            model=settings.EMBEDDING_MODEL,
+            took_ms=took_ms,
+            total_journals=total_journals,
+        ),
+    )

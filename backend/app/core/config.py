@@ -41,6 +41,16 @@ class Settings(BaseSettings):
         description="Allowed CORS origins list.",
     )
 
+    # Embedding settings
+    EMBEDDING_MODEL: str = Field(
+        default="allenai-specter",
+        description="Transformer model name or path for document embeddings.",
+    )
+    EMBEDDING_DEVICE: str = Field(
+        default="cpu",
+        description="Device to run embedding model on (cpu or cuda).",
+    )
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
