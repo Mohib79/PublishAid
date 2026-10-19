@@ -145,17 +145,21 @@ export const Sidebar: React.FC = () => {
 
         {/* User Card */}
         {user && (
-          <div
-            className={`flex items-center gap-3 px-2 py-1.5 rounded-xl ${
-              isSidebarCollapsed ? 'justify-center' : ''
-            }`}
+          <NavLink
+            to="/settings"
+            title={isSidebarCollapsed ? `${user.fullName} (Settings & Account)` : 'View Account & Settings'}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-2 py-1.5 rounded-xl transition-all cursor-pointer group ${
+                isActive ? 'bg-slate-100 ring-1 ring-slate-200' : 'hover:bg-slate-100'
+              } ${isSidebarCollapsed ? 'justify-center' : ''}`
+            }
           >
-            <div className="w-8 h-8 rounded-full bg-[#CCFBF1] text-[#0F766E] font-bold text-xs flex items-center justify-center shrink-0 border border-[#99F6E4]">
+            <div className="w-8 h-8 rounded-full bg-[#CCFBF1] text-[#0F766E] font-bold text-xs flex items-center justify-center shrink-0 border border-[#99F6E4] group-hover:scale-105 transition-transform">
               {user.avatarInitials}
             </div>
             {!isSidebarCollapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-800 truncate">
+              <div className="min-w-0 flex-1 text-left">
+                <p className="text-xs font-semibold text-slate-800 truncate group-hover:text-[#0F766E] transition-colors">
                   {user.fullName}
                 </p>
                 <p className="text-[11px] text-slate-400 truncate">
@@ -163,7 +167,7 @@ export const Sidebar: React.FC = () => {
                 </p>
               </div>
             )}
-          </div>
+          </NavLink>
         )}
       </div>
     </aside>

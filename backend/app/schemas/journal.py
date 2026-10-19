@@ -95,7 +95,7 @@ class MatchRequest(BaseModel):
     title: Optional[str] = Field(None, max_length=300)
     abstract: Optional[str] = Field(None, max_length=10000)
     keywords: Optional[Union[list[str], str]] = None
-    limit: int = Field(20, ge=1, le=50)
+    limit: int = Field(10, ge=1, le=50)
     project_id: Optional[Union[int, str]] = None
 
     @field_validator("keywords", mode="before")

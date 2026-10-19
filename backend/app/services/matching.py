@@ -32,16 +32,28 @@ def build_query_text(
 
 
 def to_match_score(similarity: float) -> int:
-    """Converts cosine similarity (0.0 to 1.0) into user-facing percentage score (0 to 100)."""
-    # Clamp between 0.0 and 1.0 before scaling
-    clamped = max(0.0, min(1.0, float(similarity)))
-    return int(round(clamped * 100))
+    """
+    Calibrates cosine similarity into a user-facing percentage score (0 to 100)
+    using Min-Max normalization against the empirical SPECTER baseline.
+    Maps [0.72, 0.95] to [0%, 100%].
+    """
+    sim = float(similarity)
+    t_min = 0.72
+    t_max = 0.95
+
+    if sim <= t_min:
+        return 0
+    if sim >= t_max:
+        return 100
+
+    scaled = ((sim - t_min) / (t_max - t_min)) * 100.0
+    return int(round(scaled))
 
 
 def search_matching_journals(
     query_vector: list[float],
     db: Session,
-    limit: int = 20,
+    limit: int = 10,
 ) -> list[tuple[Journal, float, int, Optional[str]]]:
     """
     Executes cosine distance search in pgvector over indexed journals.

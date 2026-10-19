@@ -38,8 +38,6 @@ export const JournalFinderPage: React.FC = () => {
     toggleCompareJournal,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'paste' | 'upload'>('paste');
-
   // Input states start empty per plan specification (ignoring mock urban-heat project from initial data)
   const isMockDemoProject =
     activeProject?.id === 'proj_01' ||
@@ -114,12 +112,15 @@ export const JournalFinderPage: React.FC = () => {
     setSearchState('loading');
 
     try {
+      // Only send projectId if it is a real numeric database ID (not mock 'proj_01')
+      const isDbProjectId = !!activeProject?.id && /^\d+$/.test(activeProject.id);
+
       const resp = await matchJournals({
         title: cleanTitle || undefined,
         abstract: cleanAbstract || undefined,
         keywords: kwList.length > 0 ? kwList : undefined,
-        projectId: activeProject?.id,
-        limit: 20,
+        projectId: isDbProjectId ? activeProject.id : undefined,
+        limit: 10,
       });
 
       setMatchedJournals(resp.results);
@@ -161,9 +162,10 @@ export const JournalFinderPage: React.FC = () => {
 
     try {
       let targetProjectId = activeProject?.id;
+      const isDbProjectId = !!targetProjectId && /^\d+$/.test(targetProjectId);
 
-      // Auto-project rule: if there is no active project, auto-create one
-      if (!targetProjectId) {
+      // Auto-project rule: if there is no real database project, auto-create one
+      if (!isDbProjectId) {
         if (creatingProjectRef.current) {
           return;
         }
@@ -278,32 +280,8 @@ export const JournalFinderPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column (5 cols) */}
         <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-2xs space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="border-b border-slate-100 pb-3">
             <h2 className="text-base font-bold text-[#14283D]">Tell us about your paper</h2>
-            <div className="flex items-center gap-2 text-xs font-medium">
-              <button
-                type="button"
-                onClick={() => setActiveTab('paste')}
-                className={`pb-1 cursor-pointer transition-colors ${
-                  activeTab === 'paste'
-                    ? 'text-[#0F766E] border-b-2 border-[#0F766E] font-semibold'
-                    : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Paste details
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('upload')}
-                className={`pb-1 cursor-pointer transition-colors ${
-                  activeTab === 'upload'
-                    ? 'text-[#0F766E] border-b-2 border-[#0F766E] font-semibold'
-                    : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Upload manuscript
-              </button>
-            </div>
           </div>
 
           <form onSubmit={handleSearch} className="space-y-4">
