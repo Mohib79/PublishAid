@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from datetime import datetime
-from sqlalchemy import String, Integer, DateTime, Text, ForeignKey, func
+from sqlalchemy import String, Integer, DateTime, Text, ForeignKey, func, text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -24,6 +25,12 @@ class Project(Base):
     )
     project_title: Mapped[str] = mapped_column(String(300), nullable=False)
     manuscript_abstract: Mapped[str | None] = mapped_column(Text, nullable=True)
+    keywords: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        nullable=False,
+        default=list,
+        server_default=text("'{}'::text[]"),
+    )
     current_file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     file_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)

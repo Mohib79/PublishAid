@@ -13,9 +13,12 @@ interface AppContextType {
   activeProjectId: string;
   setActiveProjectId: (id: string) => void;
   activeProject: Project | undefined;
+  setActiveProject: (project: Project) => void;
   addProject: (title: string, field: string, abstract?: string) => Project;
   journals: Journal[];
+  mergeJournals: (incoming: Journal[]) => void;
   toggleShortlistJournal: (journalId: string) => void;
+  setJournalShortlisted: (journalId: string, isShortlisted: boolean) => void;
   selectedCompareJournalIds: string[];
   toggleCompareJournal: (journalId: string) => void;
   conversions: ConversionJob[];
@@ -49,6 +52,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
 
+  const setActiveProject = (project: Project) => {
+    setProjects(prev => {
+      const exists = prev.some(p => p.id === project.id);
+      return exists ? prev.map(p => p.id === project.id ? project : p) : [project, ...prev];
+    });
+    setActiveProjectId(project.id);
+  };
+
   const addProject = (title: string, field: string, abstract = '') => {
     const newProj: Project = {
       id: `proj_${Date.now()}`,
@@ -64,6 +75,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveProjectId(newProj.id);
     addActivity('Project created', title, 'project');
     return newProj;
+  };
+
+  const mergeJournals = (incoming: Journal[]) => {
+    setJournals(prev => {
+      const map = new Map<string, Journal>();
+      for (const j of prev) {
+        map.set(j.id, j);
+      }
+      for (const j of incoming) {
+        const existing = map.get(j.id);
+        map.set(j.id, {
+          ...(existing || {}),
+          ...j,
+          // Preserve shortlist status if already true
+          isShortlisted: j.isShortlisted ?? existing?.isShortlisted ?? false,
+        });
+      }
+      return Array.from(map.values());
+    });
+  };
+
+  const setJournalShortlisted = (journalId: string, isShortlisted: boolean) => {
+    setJournals(prev =>
+      prev.map(j => {
+        if (j.id === journalId) {
+          return { ...j, isShortlisted };
+        }
+        return j;
+      })
+    );
   };
 
   const toggleShortlistJournal = (journalId: string) => {
@@ -199,9 +240,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeProjectId,
         setActiveProjectId,
         activeProject,
+        setActiveProject,
         addProject,
         journals,
+        mergeJournals,
         toggleShortlistJournal,
+        setJournalShortlisted,
         selectedCompareJournalIds,
         toggleCompareJournal,
         conversions,

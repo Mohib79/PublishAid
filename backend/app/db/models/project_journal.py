@@ -35,6 +35,12 @@ class ProjectJournal(Base):
         nullable=False,
     )
     similarity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_shortlisted: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
     is_selected: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

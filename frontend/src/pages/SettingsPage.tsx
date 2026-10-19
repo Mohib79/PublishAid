@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { User, Shield, Key, Database, Save, Check } from 'lucide-react';
+import { User, Shield, Key, Database, Save, Check, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
 
 export const SettingsPage: React.FC = () => {
-  const { user, setUser } = useApp();
-  const [name, setName] = useState(user?.fullName || 'Dr. Maya Chen');
-  const [email, setEmail] = useState(user?.email || 'maya.chen@university.edu');
+  const { user, setUser, logout } = useApp();
+  const navigate = useNavigate();
+  const [name, setName] = useState(user?.fullName || 'Mohib Mansoor');
+  const [email, setEmail] = useState(user?.email || 'mohib@publishaid.org');
   const [saved, setSaved] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
@@ -20,6 +22,11 @@ export const SettingsPage: React.FC = () => {
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -36,7 +43,7 @@ export const SettingsPage: React.FC = () => {
       <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-2xs space-y-6">
         <div className="flex items-center gap-4 pb-6 border-b border-slate-100">
           <div className="w-14 h-14 rounded-full bg-[#CCFBF1] text-[#0F766E] font-bold text-lg flex items-center justify-center border border-[#99F6E4]">
-            {user?.avatarInitials || 'MC'}
+            {user?.avatarInitials || 'MM'}
           </div>
           <div>
             <h2 className="text-base font-bold text-[#14283D]">{user?.fullName}</h2>
@@ -80,12 +87,22 @@ export const SettingsPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
+          <div className="pt-2 flex items-center justify-between flex-wrap gap-3">
             <Button
               type="submit"
               leftIcon={saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             >
               {saved ? 'Changes Saved' : 'Save Changes'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleLogout}
+              className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300"
+              leftIcon={<LogOut className="w-4 h-4" />}
+            >
+              Log Out
             </Button>
           </div>
         </form>
