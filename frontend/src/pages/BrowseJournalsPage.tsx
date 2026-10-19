@@ -248,7 +248,7 @@ export const BrowseJournalsPage: React.FC = () => {
                 <option value="citescore">CiteScore (Highest)</option>
                 <option value="impact_factor">Impact Factor (Highest)</option>
                 <option value="acceptance_rate">Acceptance Rate (Highest)</option>
-                <option value="review_weeks">Review Speed (Fastest)</option>
+                <option value="review_weeks">First Decision Time (Fastest)</option>
               </select>
             </div>
 
@@ -551,7 +551,7 @@ export const BrowseJournalsPage: React.FC = () => {
 
                   {/* Aims and scope snippet */}
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                    {journal.aimsAndScope}
+                    {journal.aimsAndScope?.replace(/\\n/g, '\n')}
                   </p>
                 </div>
 
@@ -575,7 +575,7 @@ export const BrowseJournalsPage: React.FC = () => {
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Review</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">First Decision</div>
                       <div className="text-xs sm:text-sm font-bold text-slate-800">
                         {journal.reviewWeeks !== null && journal.reviewWeeks !== undefined
                           ? `~${journal.reviewWeeks} w`
@@ -631,7 +631,7 @@ export const BrowseJournalsPage: React.FC = () => {
                   <th className="py-3 px-3 text-center">Quartile</th>
                   <th className="py-3 px-3 text-right">CiteScore</th>
                   <th className="py-3 px-3 text-right">Impact Factor</th>
-                  <th className="py-3 px-3 text-center">Review Speed</th>
+                  <th className="py-3 px-3 text-center">Time to First Decision</th>
                   <th className="py-3 px-3 text-center">Acceptance</th>
                   <th className="py-3 px-4 text-center">Actions</th>
                 </tr>
@@ -864,7 +864,7 @@ export const BrowseJournalsPage: React.FC = () => {
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="text-[11px] font-bold text-slate-400 uppercase">Review Time</div>
+                  <div className="text-[11px] font-bold text-slate-400 uppercase">Time to First Decision</div>
                   <div className="text-base font-extrabold text-slate-900 mt-0.5">
                     {selectedModalJournal.reviewWeeks
                       ? `~${selectedModalJournal.reviewWeeks} weeks`
@@ -890,7 +890,7 @@ export const BrowseJournalsPage: React.FC = () => {
                     Official Aims & Scope
                   </h4>
                   <button
-                    onClick={() => handleCopyScope(selectedModalJournal.aimsAndScope)}
+                    onClick={() => handleCopyScope(selectedModalJournal.aimsAndScope?.replace(/\\n/g, '\n'))}
                     className="text-xs text-[#0F766E] hover:underline cursor-pointer flex items-center gap-1 font-medium"
                   >
                     {copiedScope ? (
@@ -903,8 +903,8 @@ export const BrowseJournalsPage: React.FC = () => {
                     )}
                   </button>
                 </div>
-                <div className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200/80 text-sm text-slate-700 leading-relaxed max-h-64 overflow-y-auto">
-                  {selectedModalJournal.aimsAndScope}
+                <div className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200/80 text-sm text-slate-700 leading-relaxed max-h-64 overflow-y-auto whitespace-pre-line">
+                  {selectedModalJournal.aimsAndScope?.replace(/\\n/g, '\n')}
                 </div>
               </div>
 
