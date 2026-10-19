@@ -7,10 +7,15 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from sqlalchemy import select
+from app.core.embeddings_config import (
+    DEFAULT_EMBEDDING_MODEL,
+    EMBEDDING_DIMENSION,
+    build_journal_text,
+)
 from app.db.session import SessionLocal
 from app.db.models.journal import Journal
 
-MODEL_NAME = "allenai-specter"
+MODEL_NAME = DEFAULT_EMBEDDING_MODEL
 
 def embed_journals(force: bool = False, limit: int | None = None, batch_size: int = 16):
     try:
@@ -28,8 +33,8 @@ def embed_journals(force: bool = False, limit: int | None = None, batch_size: in
     dim = model.get_sentence_embedding_dimension()
     print(f"Model output dimension: {dim}")
 
-    if dim != 768:
-        print(f"Error: Model output dimension is {dim}, expected 768. Aborting.", file=sys.stderr)
+    if dim != EMBEDDING_DIMENSION:
+        print(f"Error: Model output dimension is {dim}, expected {EMBEDDING_DIMENSION}. Aborting.", file=sys.stderr)
         sys.exit(1)
 
     with SessionLocal() as session:
@@ -49,7 +54,7 @@ def embed_journals(force: bool = False, limit: int | None = None, batch_size: in
 
         for i in range(0, total, batch_size):
             batch = journals[i : i + batch_size]
-            texts = [f"{j.journal_title}. {j.aims_and_scope}" for j in batch]
+            texts = [build_journal_text(j.journal_title, j.aims_and_scope) for j in batch]
             print(f"Embedding batch {i // batch_size + 1}/{(total + batch_size - 1) // batch_size} ({len(batch)} items)...")
 
             embeddings = model.encode(texts, batch_size=batch_size, show_progress_bar=False)

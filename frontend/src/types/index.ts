@@ -40,16 +40,42 @@ export interface Journal {
   publisher: string;
   issn: string;
   subjectCategory: string;
-  citeScore: number;
-  impactFactor: number;
-  quartile: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  citeScore?: number | null;
+  impactFactor?: number | null;
+  quartile?: 'Q1' | 'Q2' | 'Q3' | 'Q4' | string | null;
   aimsAndScope: string;
-  openAccessType: 'Open access' | 'Hybrid' | 'Subscription';
-  reviewWeeks: number;
-  acceptanceRate: number; // percentage e.g. 22
+  openAccessType?: 'Open access' | 'Hybrid' | 'Subscription' | string | null;
+  reviewWeeks?: number | null;
+  acceptanceRate?: number | null; // percentage e.g. 22
   isShortlisted?: boolean;
   matchScore?: number; // e.g. 96
-  matchTag?: string; // e.g. "Best scope match"
+  matchTag?: string | null; // e.g. "Best fit"
+  rawSimilarity?: number | null;
+}
+
+export interface MatchRequest {
+  title?: string;
+  abstract?: string;
+  keywords?: string[];
+  limit?: number;
+  projectId?: string;
+}
+
+export interface MatchMeta {
+  model: string;
+  tookMs: number;
+  totalJournals: number;
+}
+
+export interface MatchResponse {
+  results: Journal[];
+  meta: MatchMeta;
+}
+
+export interface CreateProjectPayload {
+  title: string;
+  abstract?: string;
+  keywords?: string[];
 }
 
 export interface GuidelineRule {

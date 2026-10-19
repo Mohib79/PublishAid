@@ -12,6 +12,9 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.core.config import settings
 
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
+
 @pytest.fixture(scope="session")
 def test_engine():
     test_db_url = settings.TEST_DATABASE_URL
