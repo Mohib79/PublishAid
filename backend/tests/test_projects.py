@@ -265,3 +265,70 @@ def test_activity_log_feed(client, auth_header_a):
     res_recent = client.get("/activity/recent", headers=auth_header_a)
     assert res_recent.status_code == 200
     assert len(res_recent.json()) >= 2
+
+
+# --- Part B: Target Journal Tests (WS-TGT) ---
+
+def test_target_journal_lifecycle(client, auth_header_a, sample_journal):
+    create_res = client.post("/projects", json={"title": "Target Journal Project"}, headers=auth_header_a)
+    p_id = create_res.json()["id"]
+    j_id = sample_journal.journal_id
+
+    # 1. Set target journal (WS-TGT-01 & 02)
+    set_res = client.put(f"/projects/{p_id}/target-journal/{j_id}", headers=auth_header_a)
+    assert set_res.status_code == 200
+    data = set_res.json()
+    assert data["targetJournal"] is not None
+    assert data["targetJournal"]["id"] == str(j_id)
+    assert data["shortlistedCount"] >= 1
+
+    # 2. Clear target journal (WS-TGT-07)
+    clear_res = client.delete(f"/projects/{p_id}/target-journal", headers=auth_header_a)
+    assert clear_res.status_code == 200
+    data_cleared = clear_res.json()
+    assert data_cleared["targetJournal"] is None
+    # Remains shortlisted
+    assert data_cleared["shortlistedCount"] >= 1
+
+
+# --- Part B: Upload & Manuscript Tests (WS-UPL, WS-MDL) ---
+
+def test_manuscript_upload_and_delete(client, auth_header_a):
+    create_res = client.post("/projects", json={"title": "Upload Paper Project"}, headers=auth_header_a)
+    p_id = create_res.json()["id"]
+
+    # 1. Upload valid .tex file
+    tex_content = b"\\documentclass{article}\n\\begin{document}\nHello PublishAid\n\\end{document}"
+    files = {"file": ("draft.tex", tex_content, "text/plain")}
+    up_res = client.post(f"/projects/{p_id}/manuscript", files=files, headers=auth_header_a)
+    assert up_res.status_code == 201
+    up_data = up_res.json()
+    assert up_data["fileName"] == "draft.tex"
+    assert up_data["sizeBytes"] == len(tex_content)
+    assert up_data["available"] is True
+    assert "expiresAt" in up_data
+
+    # 2. Verify overview reflects manuscript
+    ov_res = client.get(f"/projects/{p_id}", headers=auth_header_a)
+    assert ov_res.status_code == 200
+    ov_data = ov_res.json()
+    assert ov_data["manuscript"] is not None
+    assert ov_data["manuscript"]["fileName"] == "draft.tex"
+
+    # 3. Reject invalid file extension (.exe)
+    bad_files = {"file": ("malicious.exe", b"binarycontent", "application/octet-stream")}
+    bad_res = client.post(f"/projects/{p_id}/manuscript", files=bad_files, headers=auth_header_a)
+    assert bad_res.status_code == 415
+
+    # 4. Reject empty file
+    empty_files = {"file": ("empty.tex", b"", "text/plain")}
+    empty_res = client.post(f"/projects/{p_id}/manuscript", files=empty_files, headers=auth_header_a)
+    assert empty_res.status_code == 422
+
+    # 5. Delete manuscript (WS-MDL-01)
+    del_res = client.delete(f"/projects/{p_id}/manuscript", headers=auth_header_a)
+    assert del_res.status_code == 204
+
+    # 6. Delete when none attached returns 404
+    assert client.delete(f"/projects/{p_id}/manuscript", headers=auth_header_a).status_code == 404
+

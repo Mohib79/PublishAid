@@ -8,6 +8,7 @@ from app.api.journals import router as journals_router
 from app.api.projects import router as projects_router
 from app.api.activity import router as activity_router
 from app.core.config import settings
+from app.tasks.cleanup import BackgroundCleanupRunner
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,14 @@ async def lifespan(app: FastAPI):
         init_embedder()
     except Exception as e:
         logger.warning(f"Could not warm up embedding model at startup: {e}")
+
+    # Start background cleanup runner (runs in dedicated worker thread)
+    cleanup_runner = BackgroundCleanupRunner(interval_seconds=settings.CLEANUP_INTERVAL_MINUTES * 60)
+    cleanup_runner.start()
+
     yield
+
+    cleanup_runner.stop()
 
 
 app = FastAPI(

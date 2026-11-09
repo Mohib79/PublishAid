@@ -48,3 +48,4 @@ def log_activity(
     )
     db.add(log_entry)
     return log_entry
+

@@ -56,3 +56,4 @@ def get_recent_activity(
         )
         for log in logs
     ]
+

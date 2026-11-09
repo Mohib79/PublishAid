@@ -146,3 +146,4 @@ def check_project_limit(db: Session, user_id: int) -> None:
             status_code=status.HTTP_409_CONFLICT,
             detail="Project limit reached",
         )
+

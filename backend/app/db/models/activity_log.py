@@ -54,3 +54,4 @@ class ActivityLog(Base):
         Index("ix_activity_logs_user_created", "user_id", text("created_at DESC")),
         Index("ix_activity_logs_project_created", "project_id", text("created_at DESC")),
     )
+

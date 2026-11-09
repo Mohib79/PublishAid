@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy import select, func, or_, desc, asc
 from sqlalchemy.orm import Session
 
@@ -38,6 +38,7 @@ from app.services.projects import (
     normalize_keywords,
     normalize_status,
 )
+from app.services.storage import StorageService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -593,3 +594,171 @@ def get_project_activity(
         )
         for log in logs
     ]
+
+
+# --- Part B: Target Journal Endpoints (Phase W9) ---
+
+@router.put("/{project_id}/target-journal/{journal_id}", response_model=ProjectOverviewOut)
+def set_target_journal(
+    project_id: int,
+    journal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectOverviewOut:
+    # Lock project row first to serialize concurrent requests
+    project = db.execute(
+        select(Project).where(
+            Project.project_id == project_id,
+            Project.user_id == current_user.user_id,
+        ).with_for_update()
+    ).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    journal = db.execute(
+        select(Journal).where(Journal.journal_id == journal_id)
+    ).scalar_one_or_none()
+    if not journal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journal not found")
+
+    # Clear is_selected on all other journals for this project
+    all_pjs = db.execute(
+        select(ProjectJournal).where(ProjectJournal.project_id == project.project_id)
+    ).scalars().all()
+
+    target_pj = None
+    for pj in all_pjs:
+        if pj.journal_id == journal.journal_id:
+            target_pj = pj
+        elif pj.is_selected:
+            pj.is_selected = False
+
+    if target_pj:
+        target_pj.is_selected = True
+        target_pj.is_shortlisted = True
+    else:
+        target_pj = ProjectJournal(
+            project_id=project.project_id,
+            journal_id=journal.journal_id,
+            is_selected=True,
+            is_shortlisted=True,
+        )
+        db.add(target_pj)
+
+    project.updated_at = datetime.now(timezone.utc)
+    log_activity(db, current_user.user_id, project, "target_journal_set", {"journalId": journal.journal_id})
+    db.commit()
+
+    return get_project_overview(project_id, db, current_user)
+
+
+@router.delete("/{project_id}/target-journal", response_model=ProjectOverviewOut)
+def clear_target_journal(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectOverviewOut:
+    project = get_owned_project_or_404(db, current_user, project_id)
+
+    selected_pj = db.execute(
+        select(ProjectJournal).where(
+            ProjectJournal.project_id == project.project_id,
+            ProjectJournal.is_selected.is_(True),
+        )
+    ).scalar_one_or_none()
+
+    if selected_pj:
+        selected_pj.is_selected = False  # Stays shortlisted
+        project.updated_at = datetime.now(timezone.utc)
+        log_activity(db, current_user.user_id, project, "target_journal_cleared", {"journalId": selected_pj.journal_id})
+        db.commit()
+
+    return get_project_overview(project_id, db, current_user)
+
+
+# --- Part B: Manuscript Attachment & Storage (Phase W10) ---
+
+@router.post("/{project_id}/manuscript", response_model=ManuscriptInfo, status_code=status.HTTP_201_CREATED)
+async def upload_manuscript(
+    project_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ManuscriptInfo:
+    project = get_owned_project_or_404(db, current_user, project_id)
+
+    storage = StorageService(settings.STORAGE_ROOT)
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+
+    # Stream upload with size check and content sniffing
+    rel_key, display_name, size_bytes = await storage.save_manuscript_stream(
+        project_id=project.project_id,
+        upload_file=file,
+        max_bytes=max_bytes,
+    )
+
+    old_file_key = project.current_file_path
+    was_replaced = bool(old_file_key and not project.file_deleted_at)
+
+    try:
+        now = datetime.now(timezone.utc)
+        project.current_file_path = rel_key
+        project.manuscript_filename = display_name
+        project.manuscript_size_bytes = size_bytes
+        project.manuscript_uploaded_at = now
+        project.file_deleted_at = None
+        project.updated_at = now
+
+        ext_clean = Path(display_name).suffix.lower().lstrip(".")
+        log_activity(
+            db,
+            current_user.user_id,
+            project,
+            "manuscript_uploaded",
+            {"extension": ext_clean, "sizeBytes": size_bytes, "replaced": was_replaced},
+        )
+        db.commit()
+
+        # Safely delete old file on successful DB update
+        if was_replaced and old_file_key and old_file_key != rel_key:
+            storage.delete_manuscript_file(old_file_key)
+
+    except Exception:
+        db.rollback()
+        # Clean up newly written file on DB error
+        storage.delete_manuscript_file(rel_key)
+        raise
+
+    db.refresh(project)
+    info = build_manuscript_info(project, db)
+    if not info:
+        raise HTTPException(status_code=500, detail="Failed to construct manuscript info")
+    return info
+
+
+@router.delete("/{project_id}/manuscript", status_code=status.HTTP_204_NO_CONTENT)
+def delete_manuscript(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    project = get_owned_project_or_404(db, current_user, project_id)
+
+    if not project.current_file_path and not project.manuscript_filename:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No manuscript attached",
+        )
+
+    storage = StorageService(settings.STORAGE_ROOT)
+    storage.delete_manuscript_file(project.current_file_path)
+
+    now = datetime.now(timezone.utc)
+    project.current_file_path = None
+    project.manuscript_filename = None
+    project.manuscript_size_bytes = None
+    project.file_deleted_at = now
+    project.updated_at = now
+
+    log_activity(db, current_user.user_id, project, "manuscript_removed")
+    db.commit()

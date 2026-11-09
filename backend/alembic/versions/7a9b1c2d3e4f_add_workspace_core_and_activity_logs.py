@@ -106,3 +106,4 @@ def downgrade() -> None:
     op.drop_column('projects', 'updated_at')
     op.drop_column('projects', 'status')
     op.drop_column('projects', 'research_field')
+
