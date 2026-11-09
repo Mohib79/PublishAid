@@ -22,7 +22,15 @@ import {
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
-import { getProjectById, updateProject, deleteProject, getProjectActivity } from '../lib/api';
+import {
+  getProjectById,
+  updateProject,
+  deleteProject,
+  getProjectActivity,
+  uploadManuscript,
+  deleteManuscript,
+  clearTargetJournal,
+} from '../lib/api';
 import { Project, ProjectActivityEvent } from '../types';
 
 export const WorkspaceOverviewPage: React.FC = () => {
@@ -47,6 +55,11 @@ export const WorkspaceOverviewPage: React.FC = () => {
   // Delete State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Upload & File State
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDeletingFile, setIsDeletingFile] = useState<boolean>(false);
 
   const fetchProjectDetails = async () => {
     if (!id) return;
@@ -108,6 +121,48 @@ export const WorkspaceOverviewPage: React.FC = () => {
       alert(err.message || 'Failed to update project');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!id || !e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      await uploadManuscript(id, file);
+      await fetchProjectDetails();
+      await refreshProjects();
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload failed');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveFile = async () => {
+    if (!id || !confirm('Remove attached manuscript file?')) return;
+    setIsDeletingFile(true);
+    try {
+      await deleteManuscript(id);
+      await fetchProjectDetails();
+      await refreshProjects();
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove file');
+    } finally {
+      setIsDeletingFile(false);
+    }
+  };
+
+  const handleClearTarget = async () => {
+    if (!id) return;
+    try {
+      await clearTargetJournal(id);
+      await fetchProjectDetails();
+      await refreshProjects();
+    } catch (err: any) {
+      alert(err.message || 'Failed to clear target journal');
     }
   };
 
@@ -347,7 +402,17 @@ export const WorkspaceOverviewPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-100 space-y-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Target Venue</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Target Venue</span>
+                  {project.targetJournal && (
+                    <button
+                      onClick={handleClearTarget}
+                      className="text-[11px] font-semibold text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
                 <p className="text-sm font-bold text-[#14283D] leading-snug">
                   {targetJournalTitle}
                 </p>
@@ -383,8 +448,15 @@ export const WorkspaceOverviewPage: React.FC = () => {
               </span>
             </div>
 
+            {uploadError && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
             {project.manuscript && project.manuscript.available ? (
-              <div className="p-4 bg-teal-50/40 rounded-xl border border-teal-200/60 flex items-center justify-between gap-4">
+              <div className="p-4 bg-teal-50/40 rounded-xl border border-teal-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-[#0F766E] text-white flex items-center justify-center shrink-0">
                     <FileText className="w-4 h-4" />
@@ -397,22 +469,68 @@ export const WorkspaceOverviewPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => navigate('/compliance')}>
-                    Check Compliance
+                  <label className="cursor-pointer">
+                    <Button size="sm" variant="secondary" isLoading={isUploading}>
+                      Replace File
+                    </Button>
+                    <input
+                      type="file"
+                      accept=".docx,.tex,.pdf"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleRemoveFile}
+                    isLoading={isDeletingFile}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Remove
                   </Button>
                 </div>
+              </div>
+            ) : project.manuscript && !project.manuscript.available ? (
+              <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-3">
+                <div className="flex items-start gap-2.5 text-xs text-amber-800">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>Your file was removed automatically for privacy. Upload it again to continue.</span>
+                </div>
+                <label className="inline-block cursor-pointer">
+                  <Button size="sm" isLoading={isUploading}>
+                    Upload Manuscript Again
+                  </Button>
+                  <input
+                    type="file"
+                    accept=".docx,.tex,.pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={isUploading}
+                  />
+                </label>
               </div>
             ) : (
               <div className="border-2 border-dashed border-slate-200 hover:border-[#0F766E]/50 rounded-2xl p-6 flex flex-col items-center justify-center bg-slate-50/50 text-center space-y-2">
                 <UploadCloud className="w-8 h-8 text-[#0F766E] stroke-[1.5]" />
                 <p className="text-sm font-bold text-[#14283D]">Attach manuscript draft</p>
                 <p className="text-xs text-slate-400 max-w-sm">
-                  Upload .docx, .tex or .pdf up to 20 MB. Draft files are stored securely in temporary execution storage and deleted automatically post-session.
+                  Upload .docx, .tex or .pdf up to 20 MB. Draft files are stored securely in temporary execution storage and deleted automatically post-session (2 hours).
                 </p>
                 <div className="pt-2">
-                  <Button size="sm" variant="secondary" onClick={() => navigate('/finder')}>
-                    Attach in Journal Finder
-                  </Button>
+                  <label className="cursor-pointer">
+                    <Button size="sm" isLoading={isUploading}>
+                      {isUploading ? 'Uploading & Sniffing...' : 'Browse & Upload Draft'}
+                    </Button>
+                    <input
+                      type="file"
+                      accept=".docx,.tex,.pdf"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                  </label>
                 </div>
               </div>
             )}

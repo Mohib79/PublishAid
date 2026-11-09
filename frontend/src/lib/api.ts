@@ -238,6 +238,27 @@ export async function deleteProject(projectId: string | number): Promise<void> {
   return apiRequest<void>(`/projects/${projectId}`, { method: 'DELETE' }, true);
 }
 
+export async function setTargetJournal(projectId: string | number, journalId: string | number): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}/target-journal/${journalId}`, { method: 'PUT' }, true);
+}
+
+export async function clearTargetJournal(projectId: string | number): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}/target-journal`, { method: 'DELETE' }, true);
+}
+
+export async function uploadManuscript(projectId: string | number, file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiRequest<any>(`/projects/${projectId}/manuscript`, {
+    method: 'POST',
+    body: formData,
+  }, true);
+}
+
+export async function deleteManuscript(projectId: string | number): Promise<void> {
+  return apiRequest<void>(`/projects/${projectId}/manuscript`, { method: 'DELETE' }, true);
+}
+
 export async function getProjectActivity(
   projectId: string | number,
   limit = 20,
