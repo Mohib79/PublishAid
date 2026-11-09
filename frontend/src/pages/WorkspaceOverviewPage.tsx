@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   FolderKanban,
@@ -124,9 +124,10 @@ export const WorkspaceOverviewPage: React.FC = () => {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!id || !e.target.files || !e.target.files[0]) return;
-    const file = e.target.files[0];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadSelectedFile = async (file: File) => {
+    if (!id) return;
     setIsUploading(true);
     setUploadError(null);
     try {
@@ -137,7 +138,15 @@ export const WorkspaceOverviewPage: React.FC = () => {
       setUploadError(err.message || 'Upload failed');
     } finally {
       setIsUploading(false);
-      e.target.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      await uploadSelectedFile(e.target.files[0]);
     }
   };
 
@@ -448,6 +457,16 @@ export const WorkspaceOverviewPage: React.FC = () => {
               </span>
             </div>
 
+            {/* Hidden native file input activated by ref */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".docx,.tex,.pdf"
+              onChange={handleFileInputChange}
+              className="hidden"
+              disabled={isUploading}
+            />
+
             {uploadError && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -469,18 +488,14 @@ export const WorkspaceOverviewPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer">
-                    <Button size="sm" variant="secondary" isLoading={isUploading}>
-                      Replace File
-                    </Button>
-                    <input
-                      type="file"
-                      accept=".docx,.tex,.pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      disabled={isUploading}
-                    />
-                  </label>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isLoading={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Replace File
+                  </Button>
                   <Button
                     size="sm"
                     variant="secondary"
@@ -498,39 +513,44 @@ export const WorkspaceOverviewPage: React.FC = () => {
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span>Your file was removed automatically for privacy. Upload it again to continue.</span>
                 </div>
-                <label className="inline-block cursor-pointer">
-                  <Button size="sm" isLoading={isUploading}>
+                <div>
+                  <Button
+                    size="sm"
+                    isLoading={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     Upload Manuscript Again
                   </Button>
-                  <input
-                    type="file"
-                    accept=".docx,.tex,.pdf"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={isUploading}
-                  />
-                </label>
+                </div>
               </div>
             ) : (
-              <div className="border-2 border-dashed border-slate-200 hover:border-[#0F766E]/50 rounded-2xl p-6 flex flex-col items-center justify-center bg-slate-50/50 text-center space-y-2">
-                <UploadCloud className="w-8 h-8 text-[#0F766E] stroke-[1.5]" />
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    uploadSelectedFile(e.dataTransfer.files[0]);
+                  }
+                }}
+                className="border-2 border-dashed border-slate-200 hover:border-[#0F766E]/50 rounded-2xl p-6 flex flex-col items-center justify-center bg-slate-50/50 text-center space-y-2 cursor-pointer transition-colors group"
+              >
+                <UploadCloud className="w-8 h-8 text-[#0F766E] group-hover:scale-110 transition-transform stroke-[1.5]" />
                 <p className="text-sm font-bold text-[#14283D]">Attach manuscript draft</p>
                 <p className="text-xs text-slate-400 max-w-sm">
                   Upload .docx, .tex or .pdf up to 20 MB. Draft files are stored securely in temporary execution storage and deleted automatically post-session (2 hours).
                 </p>
                 <div className="pt-2">
-                  <label className="cursor-pointer">
-                    <Button size="sm" isLoading={isUploading}>
-                      {isUploading ? 'Uploading & Sniffing...' : 'Browse & Upload Draft'}
-                    </Button>
-                    <input
-                      type="file"
-                      accept=".docx,.tex,.pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      disabled={isUploading}
-                    />
-                  </label>
+                  <Button
+                    size="sm"
+                    isLoading={isUploading}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    {isUploading ? 'Uploading & Sniffing...' : 'Browse & Upload Draft'}
+                  </Button>
                 </div>
               </div>
             )}

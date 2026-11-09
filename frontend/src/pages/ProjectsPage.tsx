@@ -18,12 +18,23 @@ export const ProjectsPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const availableFields = Array.from(
+    new Set([
+      'Computer science',
+      'Environmental science',
+      'Urban studies',
+      'Ecology',
+      'Energy systems',
+      ...projects.map((p) => (p.researchField || p.field || '').trim()).filter(Boolean),
+    ])
+  );
+
   const filteredProjects = projects.filter((p) => {
     const f = p.researchField || p.field || '';
     const matchesSearch =
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       f.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesField = filterField === 'All' || f === filterField;
+    const matchesField = filterField === 'All' || f.trim().toLowerCase() === filterField.trim().toLowerCase();
     return matchesSearch && matchesField;
   });
 
@@ -90,10 +101,11 @@ export const ProjectsPage: React.FC = () => {
             className="h-[40px] px-3 rounded-xl border border-slate-200 text-sm bg-white text-slate-700 outline-none focus:border-[#0F766E] cursor-pointer"
           >
             <option value="All">All Disciplines</option>
-            <option value="Environmental science">Environmental science</option>
-            <option value="Urban studies">Urban studies</option>
-            <option value="Ecology">Ecology</option>
-            <option value="Energy systems">Energy systems</option>
+            {availableFields.map((field) => (
+              <option key={field} value={field}>
+                {field}
+              </option>
+            ))}
           </select>
         </div>
       </div>
