@@ -51,6 +51,28 @@ class Settings(BaseSettings):
         description="Device to run embedding model on (cpu or cuda).",
     )
 
+    # Workspace settings
+    MAX_PROJECTS_PER_USER: int = Field(
+        default=50,
+        description="Maximum manuscript workspaces per user.",
+    )
+    MAX_UPLOAD_MB: int = Field(
+        default=20,
+        description="Maximum allowed manuscript upload size in megabytes.",
+    )
+    STORAGE_ROOT: str = Field(
+        default="./storage/workspaces",
+        description="Directory on disk for temporary manuscript uploads.",
+    )
+    WORKSPACE_FILE_TTL_MINUTES: int = Field(
+        default=120,
+        description="Minutes before attached manuscripts are purged automatically.",
+    )
+    CLEANUP_INTERVAL_MINUTES: int = Field(
+        default=10,
+        description="Interval in minutes between automatic cleanup sweeps.",
+    )
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
