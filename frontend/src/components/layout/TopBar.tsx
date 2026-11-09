@@ -12,7 +12,8 @@ export const TopBar: React.FC = () => {
   const getPageTitle = () => {
     const path = location.pathname;
     if (path === '/' || path === '/dashboard') return 'Dashboard';
-    if (path.startsWith('/projects')) return 'Projects';
+    if (path === '/projects') return 'Manuscript Workspaces';
+    if (path.startsWith('/projects/')) return 'Workspace Overview';
     if (path.startsWith('/browse')) return 'Browse Journals';
     if (path.startsWith('/finder')) return 'Journal Finder';
     if (path.startsWith('/compare')) return 'Compare Journals';

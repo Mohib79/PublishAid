@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Folder,
@@ -15,23 +15,46 @@ import {
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
+import { getRecentActivity } from '../lib/api';
+import { ProjectActivityEvent } from '../types';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, projects, conversions, complianceReport, activities, addProject } = useApp();
+  const { user, projects, conversions, complianceReport, addProject } = useApp();
 
+  const [recentEvents, setRecentEvents] = useState<ProjectActivityEvent[]>([]);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newField, setNewField] = useState('Environmental science');
   const [newAbstract, setNewAbstract] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  useEffect(() => {
+    getRecentActivity(10)
+      .then(res => setRecentEvents(res))
+      .catch(() => setRecentEvents([]));
+  }, [projects]);
+
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
-    addProject(newTitle.trim(), newField, newAbstract);
-    setNewTitle('');
-    setNewAbstract('');
-    setIsNewProjectModalOpen(false);
+    setCreateError(null);
+    if (!newTitle.trim()) {
+      setCreateError('Please enter a project title');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const created = await addProject(newTitle.trim(), newField, newAbstract);
+      setNewTitle('');
+      setNewAbstract('');
+      setIsNewProjectModalOpen(false);
+      navigate(`/projects/${created.id}`);
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to create workspace');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -219,7 +242,7 @@ export const DashboardPage: React.FC = () => {
                 {projects.map((proj) => (
                   <tr
                     key={proj.id}
-                    onClick={() => navigate(`/projects`)}
+                    onClick={() => navigate(`/projects/${proj.id}`)}
                     className="group hover:bg-slate-50/70 cursor-pointer transition-colors"
                   >
                     <td className="py-3.5 pr-4">
@@ -250,41 +273,72 @@ export const DashboardPage: React.FC = () => {
           </h2>
 
           <div className="space-y-4">
-            {activities.map((act) => {
-              const getIcon = () => {
-                switch (act.type) {
-                  case 'compliance':
-                    return <ShieldCheck className="w-4 h-4 text-[#0F766E]" />;
-                  case 'journal':
-                    return <Bookmark className="w-4 h-4 text-[#0F766E]" />;
-                  case 'conversion':
-                    return <RefreshCw className="w-4 h-4 text-[#0F766E]" />;
-                  case 'project':
-                    return <FolderPlus className="w-4 h-4 text-[#0F766E]" />;
-                  default:
-                    return <Folder className="w-4 h-4 text-[#0F766E]" />;
-                }
-              };
+            {recentEvents.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">No recent activity</p>
+            ) : (
+              recentEvents.map((act) => {
+                const getIcon = () => {
+                  switch (act.eventType) {
+                    case 'compliance_report_generated':
+                      return <ShieldCheck className="w-4 h-4 text-[#0F766E]" />;
+                    case 'journal_shortlisted':
+                    case 'journal_unshortlisted':
+                    case 'target_journal_set':
+                      return <Bookmark className="w-4 h-4 text-[#0F766E]" />;
+                    case 'manuscript_uploaded':
+                    case 'conversion_completed':
+                      return <RefreshCw className="w-4 h-4 text-[#0F766E]" />;
+                    case 'project_created':
+                    case 'project_updated':
+                      return <FolderPlus className="w-4 h-4 text-[#0F766E]" />;
+                    default:
+                      return <Folder className="w-4 h-4 text-[#0F766E]" />;
+                  }
+                };
 
-              return (
-                <div key={act.id} className="flex items-start gap-3 group">
-                  <div className="w-8 h-8 rounded-lg bg-[#CCFBF1] flex items-center justify-center shrink-0 border border-[#99F6E4]/50 mt-0.5">
-                    {getIcon()}
+                const getTitle = () => {
+                  switch (act.eventType) {
+                    case 'project_created':
+                      return 'Project created';
+                    case 'project_updated':
+                      return 'Project updated';
+                    case 'project_status_changed':
+                      return `Status changed to ${act.details.to || ''}`;
+                    case 'journal_shortlisted':
+                      return 'Journal shortlisted';
+                    case 'journal_unshortlisted':
+                      return 'Journal removed from shortlist';
+                    case 'target_journal_set':
+                      return 'Target journal set';
+                    case 'manuscript_uploaded':
+                      return 'Manuscript draft attached';
+                    case 'manuscript_purged':
+                      return 'Manuscript draft purged';
+                    default:
+                      return act.eventType.replace(/_/g, ' ');
+                  }
+                };
+
+                return (
+                  <div key={act.id} className="flex items-start gap-3 group">
+                    <div className="w-8 h-8 rounded-lg bg-[#CCFBF1] flex items-center justify-center shrink-0 border border-[#99F6E4]/50 mt-0.5">
+                      {getIcon()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-800 leading-tight">
+                        {getTitle()}
+                      </p>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {act.journalTitle || act.projectTitle || 'Manuscript Workspace'}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(act.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-800 leading-tight">
-                      {act.title}
-                    </p>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                      {act.subtitle}
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      {act.timestamp}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -309,6 +363,12 @@ export const DashboardPage: React.FC = () => {
                 <p className="text-xs text-slate-500">Organize drafts, candidate journals, and compliance records.</p>
               </div>
             </div>
+
+            {createError && (
+              <div className="p-3 mb-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                {createError}
+              </div>
+            )}
 
             <form onSubmit={handleCreateProject} className="space-y-4 mt-4">
               <div>
@@ -360,10 +420,11 @@ export const DashboardPage: React.FC = () => {
                   type="button"
                   variant="secondary"
                   onClick={() => setIsNewProjectModalOpen(false)}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
+                <Button type="submit" isLoading={isSubmitting}>
                   Create Workspace
                 </Button>
               </div>
