@@ -26,7 +26,7 @@ class JournalItemOut(BaseModel):
     quartile: str | None = None
     aims_and_scope: str
     open_access_type: str | None = None
-    review_weeks: int | None = None
+    review_weeks: float | None = None
     acceptance_rate: float | None = None
 
     @model_validator(mode="before")

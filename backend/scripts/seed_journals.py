@@ -67,7 +67,7 @@ def seed_journals(csv_path: Path = SEED_CSV_PATH, reset: bool = False):
                 impact_factor = parse_float(row.get("impact_factor", ""))
                 quartile = row.get("quartile", "").strip() or None
                 open_access = row.get("open_access_type", "").strip() or None
-                review_weeks = parse_int(row.get("review_weeks", ""))
+                review_weeks = parse_float(row.get("review_weeks", ""))
                 acceptance_rate = parse_float(row.get("acceptance_rate", ""))
 
                 # Range checks
