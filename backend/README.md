@@ -114,6 +114,7 @@ The following refinements resolve inconsistencies found in the FYP report data d
 | **D5** | `Project.current_file_path` always present | Nullable `current_file_path` + added `file_deleted_at` | Section 5.4.3 states manuscripts are purged after the session for privacy. |
 | **D6** | Status and role fields were unconstrained strings | Constrained with `sa.Enum(..., native_enum=False, create_constraint=True)` | Generates clean SQL CHECK constraints to prevent invalid states. |
 | **D7** | No uniqueness on `ProjectJournal` | Added `UNIQUE (project_id, journal_id)` and partial unique index `(project_id) WHERE is_selected = true` | Prevents duplicate journal bookmarks; ensures at most 1 selected journal per project. |
+| **D8** | Activity / audit logs not in 9-table schema | Added `activity_logs` table (`user_id`, `project_id`, `project_title`, `event_type`, `details JSONB`) | Section 5.1.1 promises audit logging for workspace management, manuscript operations, and dashboard history. |
 
 ---
 

@@ -1,4 +1,14 @@
-import { User, Journal, Project, MatchRequest, MatchResponse, CreateProjectPayload } from '../types';
+import {
+  User,
+  Journal,
+  Project,
+  MatchRequest,
+  MatchResponse,
+  CreateProjectPayload,
+  PatchProjectPayload,
+  ProjectListResponse,
+  ProjectActivityEvent,
+} from '../types';
 
 // Storing auth token in localStorage.
 // Security note: Acknowledged XSS tradeoff for this project environment.
@@ -93,8 +103,10 @@ async function apiRequest<T>(
   isProtected = false
 ): Promise<T> {
   const token = getStoredToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(options.headers as Record<string, string>),
   };
 
@@ -113,6 +125,10 @@ async function apiRequest<T>(
     }
     const message = await parseErrorMessage(response);
     throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return undefined as unknown as T;
   }
 
   return response.json();
@@ -172,6 +188,29 @@ export async function matchJournals(payload: MatchRequest): Promise<MatchRespons
   }, true);
 }
 
+export interface ListProjectsParams {
+  search?: string;
+  status?: string;
+  sort?: 'updatedAt' | 'createdAt' | 'title' | string;
+  order?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}
+
+export async function listProjects(params: ListProjectsParams = {}): Promise<ProjectListResponse> {
+  const query = new URLSearchParams();
+  if (params.search && params.search.trim()) query.set('search', params.search.trim());
+  if (params.status && params.status !== 'All' && params.status !== 'all') query.set('status', params.status);
+  if (params.sort) query.set('sort', params.sort);
+  if (params.order) query.set('order', params.order);
+  if (params.page) query.set('page', String(params.page));
+  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+
+  const qs = query.toString();
+  const endpoint = `/projects${qs ? `?${qs}` : ''}`;
+  return apiRequest<ProjectListResponse>(endpoint, { method: 'GET' }, true);
+}
+
 export async function createProject(payload: CreateProjectPayload): Promise<Project> {
   return apiRequest<Project>('/projects', {
     method: 'POST',
@@ -180,11 +219,58 @@ export async function createProject(payload: CreateProjectPayload): Promise<Proj
 }
 
 export async function getProjects(): Promise<Project[]> {
-  return apiRequest<Project[]>('/projects', { method: 'GET' }, true);
+  const res = await listProjects({ pageSize: 100 });
+  return res.items || [];
 }
 
 export async function getProjectById(projectId: string | number): Promise<Project> {
   return apiRequest<Project>(`/projects/${projectId}`, { method: 'GET' }, true);
+}
+
+export async function updateProject(projectId: string | number, payload: PatchProjectPayload): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function deleteProject(projectId: string | number): Promise<void> {
+  return apiRequest<void>(`/projects/${projectId}`, { method: 'DELETE' }, true);
+}
+
+export async function setTargetJournal(projectId: string | number, journalId: string | number): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}/target-journal/${journalId}`, { method: 'PUT' }, true);
+}
+
+export async function clearTargetJournal(projectId: string | number): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}/target-journal`, { method: 'DELETE' }, true);
+}
+
+export async function uploadManuscript(projectId: string | number, file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiRequest<any>(`/projects/${projectId}/manuscript`, {
+    method: 'POST',
+    body: formData,
+  }, true);
+}
+
+export async function deleteManuscript(projectId: string | number): Promise<void> {
+  return apiRequest<void>(`/projects/${projectId}/manuscript`, { method: 'DELETE' }, true);
+}
+
+export async function getProjectActivity(
+  projectId: string | number,
+  limit = 20,
+  before?: number
+): Promise<ProjectActivityEvent[]> {
+  const qs = before ? `?limit=${limit}&before=${before}` : `?limit=${limit}`;
+  return apiRequest<ProjectActivityEvent[]>(`/projects/${projectId}/activity${qs}`, { method: 'GET' }, true);
+}
+
+export async function getRecentActivity(limit = 20, before?: number): Promise<ProjectActivityEvent[]> {
+  const qs = before ? `?limit=${limit}&before=${before}` : `?limit=${limit}`;
+  return apiRequest<ProjectActivityEvent[]>(`/activity/recent${qs}`, { method: 'GET' }, true);
 }
 
 export async function shortlistJournal(

@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     Index,
+    CheckConstraint,
     func,
     text,
 )
@@ -58,6 +59,7 @@ class ProjectJournal(Base):
 
     __table_args__ = (
         UniqueConstraint("project_id", "journal_id", name="uq_project_journals_project_journal"),
+        CheckConstraint("NOT is_selected OR is_shortlisted", name="ck_project_journals_selected_implies_shortlisted"),
         Index(
             "uq_project_journals_single_selected",
             "project_id",

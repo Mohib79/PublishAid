@@ -25,6 +25,7 @@ def test_tables_and_extension_exist(db_session, test_engine):
         "conversion_jobs",
         "compliance_reports",
         "compliance_issues",
+        "activity_logs",
         "alembic_version",
     }
     assert expected_tables.issubset(tables)
@@ -101,11 +102,11 @@ def test_multiple_selected_journals_blocked(db_session):
     db_session.add_all([project, j1, j2])
     db_session.flush()
 
-    pj1 = ProjectJournal(project_id=project.project_id, journal_id=j1.journal_id, is_selected=True)
+    pj1 = ProjectJournal(project_id=project.project_id, journal_id=j1.journal_id, is_selected=True, is_shortlisted=True)
     db_session.add(pj1)
     db_session.flush()
 
-    pj2 = ProjectJournal(project_id=project.project_id, journal_id=j2.journal_id, is_selected=True)
+    pj2 = ProjectJournal(project_id=project.project_id, journal_id=j2.journal_id, is_selected=True, is_shortlisted=True)
     db_session.add(pj2)
     with pytest.raises(IntegrityError):
         db_session.flush()

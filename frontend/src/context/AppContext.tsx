@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Project, Journal, ConversionJob, TransformationJob, ComplianceReport, ActivityItem, getAvatarInitials, DEFAULT_USER_PLAN } from '../types';
-import { mockProjects as initialProjects, mockJournals as initialJournals, mockConversionHistory as initialConversions, mockTransformationHistory as initialTransformations, mockComplianceReport as initialReport, mockRecentActivity as initialActivities } from '../data/mockData';
-import { getMe, clearStoredToken, getStoredToken } from '../lib/api';
+import { mockJournals as initialJournals, mockConversionHistory as initialConversions, mockTransformationHistory as initialTransformations, mockComplianceReport as initialReport } from '../data/mockData';
+import { getMe, clearStoredToken, getStoredToken, listProjects, getProjectById, createProject as apiCreateProject } from '../lib/api';
+
+const ACTIVE_PROJECT_KEY = 'publishaid_active_project_id';
 
 interface AppContextType {
   user: User | null;
@@ -10,11 +12,14 @@ interface AppContextType {
   isSidebarCollapsed: boolean;
   toggleSidebar: () => void;
   projects: Project[];
+  isProjectsLoading: boolean;
+  projectsError: string | null;
+  refreshProjects: () => Promise<void>;
   activeProjectId: string;
   setActiveProjectId: (id: string) => void;
   activeProject: Project | undefined;
   setActiveProject: (project: Project) => void;
-  addProject: (title: string, field: string, abstract?: string) => Project;
+  addProject: (title: string, field: string, abstract?: string) => Promise<Project>;
   journals: Journal[];
   mergeJournals: (incoming: Journal[]) => void;
   toggleShortlistJournal: (journalId: string) => void;
@@ -37,17 +42,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUserState] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [activeProjectId, setActiveProjectId] = useState<string>('proj_01');
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isProjectsLoading, setIsProjectsLoading] = useState<boolean>(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectIdState] = useState<string>(() => {
+    try {
+      return localStorage.getItem(ACTIVE_PROJECT_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
+
   const [journals, setJournals] = useState<Journal[]>(initialJournals);
   const [selectedCompareJournalIds, setSelectedCompareJournalIds] = useState<string[]>(['jrn_01', 'jrn_02', 'jrn_03']);
   const [conversions, setConversions] = useState<ConversionJob[]>(initialConversions);
   const [transformations, setTransformations] = useState<TransformationJob[]>(initialTransformations);
   const [complianceReport] = useState<ComplianceReport>(initialReport);
-  const [activities, setActivities] = useState<ActivityItem[]>(initialActivities);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(prev => !prev);
+  };
+
+  const setActiveProjectId = (id: string) => {
+    setActiveProjectIdState(id);
+    try {
+      if (id) {
+        localStorage.setItem(ACTIVE_PROJECT_KEY, id);
+      } else {
+        localStorage.removeItem(ACTIVE_PROJECT_KEY);
+      }
+    } catch {
+      // Ignore storage errors
+    }
   };
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
@@ -60,21 +88,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveProjectId(project.id);
   };
 
-  const addProject = (title: string, field: string, abstract = '') => {
-    const newProj: Project = {
-      id: `proj_${Date.now()}`,
+  const refreshProjects = useCallback(async () => {
+    if (!getStoredToken()) {
+      setProjects([]);
+      return;
+    }
+    setIsProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const res = await listProjects({ pageSize: 100 });
+      setProjects(res.items || []);
+
+      // Validate stored active project
+      const storedId = localStorage.getItem(ACTIVE_PROJECT_KEY);
+      if (storedId) {
+        const found = res.items.find(p => p.id === storedId);
+        if (found) {
+          setActiveProjectIdState(storedId);
+        } else {
+          // If stored ID not in list, verify or silently clear
+          try {
+            const fetched = await getProjectById(storedId);
+            setActiveProjectIdState(fetched.id);
+          } catch {
+            localStorage.removeItem(ACTIVE_PROJECT_KEY);
+            if (res.items.length > 0) {
+              setActiveProjectId(res.items[0].id);
+            } else {
+              setActiveProjectIdState('');
+            }
+          }
+        }
+      } else if (res.items.length > 0) {
+        setActiveProjectId(res.items[0].id);
+      }
+    } catch (err: any) {
+      setProjectsError(err.message || 'Failed to load projects');
+    } finally {
+      setIsProjectsLoading(false);
+    }
+  }, []);
+
+  const addProject = async (title: string, field: string, abstract = ''): Promise<Project> => {
+    const created = await apiCreateProject({
       title,
+      researchField: field,
       field,
       abstract,
-      keywords: [],
-      status: 'Draft',
-      updatedAt: 'Just now',
-      wordCount: 0,
-    };
-    setProjects(prev => [newProj, ...prev]);
-    setActiveProjectId(newProj.id);
+    });
+    setProjects(prev => [created, ...prev]);
+    setActiveProjectId(created.id);
     addActivity('Project created', title, 'project');
-    return newProj;
+    return created;
   };
 
   const mergeJournals = (incoming: Journal[]) => {
@@ -188,6 +253,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const token = getStoredToken();
     if (!token) {
       setUserState(null);
+      setProjects([]);
+      setActiveProjectIdState('');
       setIsAuthLoading(false);
       return;
     }
@@ -200,15 +267,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           plan: userData.plan || DEFAULT_USER_PLAN,
           role: userData.role || 'Researcher',
         });
+        refreshProjects();
       })
       .catch(() => {
         clearStoredToken();
         setUserState(null);
+        setProjects([]);
+        setActiveProjectIdState('');
       })
       .finally(() => {
         setIsAuthLoading(false);
       });
-  }, []);
+  }, [refreshProjects]);
 
   const setUser = (newUser: User | null) => {
     if (newUser) {
@@ -218,14 +288,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         plan: newUser.plan || DEFAULT_USER_PLAN,
         role: newUser.role || 'Researcher',
       });
+      refreshProjects();
     } else {
       setUserState(null);
+      setProjects([]);
+      setActiveProjectIdState('');
     }
   };
 
   const logout = () => {
     clearStoredToken();
+    try {
+      localStorage.removeItem(ACTIVE_PROJECT_KEY);
+    } catch {
+      // Ignore
+    }
     setUserState(null);
+    setProjects([]);
+    setActiveProjectIdState('');
   };
 
   return (
@@ -237,6 +317,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSidebarCollapsed,
         toggleSidebar,
         projects,
+        isProjectsLoading,
+        projectsError,
+        refreshProjects,
         activeProjectId,
         setActiveProjectId,
         activeProject,

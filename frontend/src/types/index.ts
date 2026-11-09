@@ -17,21 +17,53 @@ export function getAvatarInitials(fullName: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export type ProjectStatus = 'Draft' | 'Formatting' | 'Needs review' | 'Ready to submit';
+export type ProjectStatus = 'Draft' | 'Formatting' | 'Needs review' | 'Ready to submit' | 'Submitted' | string;
+
+export interface ManuscriptMetadata {
+  fileName: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  available: boolean;
+  expiresAt: string;
+}
+
+export interface TargetJournalMetadata {
+  id: string;
+  title: string;
+  publisher: string;
+}
+
+export interface ProjectActivityEvent {
+  id: string;
+  projectId?: string | null;
+  projectTitle?: string | null;
+  eventType: string;
+  details: Record<string, any>;
+  journalTitle?: string | null;
+  createdAt: string;
+}
 
 export interface Project {
   id: string;
   title: string;
-  abstract: string;
+  abstract?: string | null;
   keywords: string[];
   field: string;
+  researchField?: string | null;
   targetJournalId?: string;
   targetJournalTitle?: string;
+  targetJournal?: TargetJournalMetadata | null;
   status: ProjectStatus;
+  createdAt?: string;
   updatedAt: string;
-  wordCount: number;
+  wordCount?: number;
   fileName?: string;
   fileSize?: string;
+  shortlistedCount?: number;
+  hasManuscript?: boolean;
+  manuscript?: ManuscriptMetadata | null;
+  counts?: { conversions: number; complianceReports: number };
+  recentActivity?: ProjectActivityEvent[];
 }
 
 export interface Journal {
@@ -74,8 +106,26 @@ export interface MatchResponse {
 
 export interface CreateProjectPayload {
   title: string;
+  researchField?: string;
+  field?: string;
   abstract?: string;
   keywords?: string[];
+}
+
+export interface PatchProjectPayload {
+  title?: string;
+  researchField?: string;
+  field?: string;
+  abstract?: string | null;
+  keywords?: string[];
+  status?: string;
+}
+
+export interface ProjectListResponse {
+  items: Project[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface GuidelineRule {

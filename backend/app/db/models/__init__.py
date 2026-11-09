@@ -7,6 +7,7 @@ from app.db.models.template import Template
 from app.db.models.conversion_job import ConversionJob
 from app.db.models.compliance_report import ComplianceReport
 from app.db.models.compliance_issue import ComplianceIssue
+from app.db.models.activity_log import ActivityLog
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "ConversionJob",
     "ComplianceReport",
     "ComplianceIssue",
+    "ActivityLog",
 ]
