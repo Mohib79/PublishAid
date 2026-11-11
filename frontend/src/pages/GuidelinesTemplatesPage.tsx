@@ -181,6 +181,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
         } else if (job.status === 'failed') {
           if (pollingRef.current) clearInterval(pollingRef.current);
           setJobError(job.error?.message || 'Guideline extraction failed. Please verify the URL or text and try again.');
+          setExtractionSubStep('input');
           loadRecentExtractions();
         }
       } catch (err: any) {
