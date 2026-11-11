@@ -53,6 +53,26 @@ import {
   Project
 } from '../types';
 
+// Safe URL and Date parser helpers to prevent UI render crashes on malformed data
+function safeHostname(raw?: string | null): string {
+  if (!raw) return 'Pasted text';
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return raw.length > 30 ? `${raw.slice(0, 30)}...` : raw;
+  }
+}
+
+function safeFormatDate(raw?: string | null): string {
+  if (!raw) return '';
+  try {
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  } catch {
+    return '';
+  }
+}
+
 export const GuidelinesTemplatesPage: React.FC = () => {
   const { projects, activeProject, setActiveProjectId, journals, addActivity } = useApp();
 
@@ -127,7 +147,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
     setIsLoadingRecents(true);
     try {
       const res = await getGuidelineExtractions(1, 10);
-      setRecentExtractions(res.items || []);
+      setRecentExtractions(Array.isArray(res) ? res : (res?.items || []));
     } catch (err) {
       console.error('Failed to load recent extractions:', err);
     } finally {
@@ -139,7 +159,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
     setIsLoadingRuleSets(true);
     try {
       const res = await getGuidelineRuleSets({ pageSize: 50 });
-      setRuleSets(res.items || []);
+      setRuleSets(Array.isArray(res) ? res : (res?.items || []));
     } catch (err) {
       console.error('Failed to load rule sets:', err);
     } finally {
@@ -173,7 +193,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
             setReviewFields(JSON.parse(JSON.stringify(job.draft.fields)));
           }
           const journalObj = journals.find(j => j.id === job.journalId);
-          const defaultName = journalObj ? `${journalObj.title} Guidelines` : (job.sourceUrl ? new URL(job.sourceUrl).hostname : 'Extracted Guidelines');
+          const defaultName = journalObj ? `${journalObj.title} Guidelines` : (job.sourceUrl ? safeHostname(job.sourceUrl) : 'Extracted Guidelines');
           setRuleSetName(defaultName);
           setExtractionSubStep('review');
           loadRecentExtractions();
@@ -475,7 +495,8 @@ Funding, Conflict of Interest, and Data Availability.
   };
 
   // Filtered rule sets list
-  const filteredRuleSets = ruleSets.filter(rs => {
+  const filteredRuleSets = (Array.isArray(ruleSets) ? ruleSets : []).filter(rs => {
+    if (!rs) return false;
     const isSeed = rs.isSystem || rs.origin === 'seed';
     if (ruleSetFilter === 'seed') return isSeed;
     if (ruleSetFilter === 'custom') return !isSeed;
@@ -773,10 +794,10 @@ Funding, Conflict of Interest, and Data Availability.
                         >
                           <div className="min-w-0 pr-2">
                             <div className="font-semibold text-slate-800 truncate">
-                              {ext.sourceUrl ? new URL(ext.sourceUrl).hostname : 'Pasted text'}
+                              {safeHostname(ext.sourceUrl)}
                             </div>
                             <div className="text-[10px] text-slate-400">
-                              {new Date(ext.createdAt).toLocaleDateString()} · {ext.status}
+                              {safeFormatDate(ext.createdAt)} · {ext.status}
                             </div>
                           </div>
                           {ext.status === 'completed' && (
@@ -1458,7 +1479,7 @@ Funding, Conflict of Interest, and Data Availability.
                         </span>
                       )}
                       <span className="text-xs text-slate-400">
-                        Updated: {new Date(selectedRuleSetForView.updatedAt || selectedRuleSetForView.createdAt).toLocaleDateString()}
+                        Updated: {safeFormatDate(selectedRuleSetForView.updatedAt || selectedRuleSetForView.createdAt)}
                       </span>
                     </div>
                   </div>
