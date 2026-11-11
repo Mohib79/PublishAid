@@ -54,7 +54,7 @@ class GeminiLLMClient(BaseLLMClient):
         model_name: str | None = None,
         prompt_version: str = "v1",
     ):
-        self.api_key = api_key or settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+        self.api_key = api_key if api_key is not None else (settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY"))
         self.model_name = model_name or settings.GEMINI_MODEL or os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         self.prompt_version = prompt_version
 

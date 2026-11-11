@@ -215,7 +215,67 @@ Results on the 20-case benchmark (`backend/eval/results_2026-10-19.md`):
 
 ---
 
-## 8. Troubleshooting
+## 9. Guideline Extraction & Rule Sets Engine
+
+### Overview
+PublishAid extracts, normalizes, validates, and manages publisher author guidelines into machine-readable formatting rules. The pipeline transforms arbitrary web URLs or pasted guidelines text into a typed, grounded JSON specification conforming to **Rules Schema v1**.
+
+### Architecture & Safety Guardrails
+1. **SSRF Guard (`fetcher.py`)**: All URL fetching enforces strict network validation:
+   - Prohibits RFC 1918 private IPv4/IPv6 ranges (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, link-local, multicast).
+   - Only `http` and `https` schemes permitted.
+   - Follows at most 3 redirects, re-verifying DNS and IP safety on every hop.
+   - 2MB download ceiling and 10s socket timeout.
+2. **Text Extraction & Sanitization (`cleaner.py` & `chunker.py`)**:
+   - Strips cookie notices, navigation banners, privacy policies, advertisements, and prompt injection traps using Trafilatura and BeautifulSoup.
+   - Chunks text into bounded overlapping segments with position offsets for verbatim quote attribution.
+3. **Structured Extraction (`gemini_client.py` & `extractor.py`)**:
+   - Driven by Gemini 2.5 Flash with structured JSON output enforcing Schema v1.
+   - Neutralized prompting prevents prompt injection from malicious webpage content.
+   - Extracts 4 categories: `documentStructure`, `citations`, `figuresAndTables`, and `submissionStyle`.
+4. **Verbatim Grounding & Validation (`grounding.py` & `schema.py`)**:
+   - Every extracted field requires a verbatim evidence quote matching cleaned source text.
+   - Low-confidence matches (<0.85) require explicit acknowledgment before activation.
+5. **Quota & Cache Protection (`runner.py`)**:
+   - Max 2 concurrent extractions per user; max 20 extractions/day per user.
+   - SHA-256 deduplication avoids re-extracting identical text within a 30-day window.
+
+### API Endpoints
+* **`GET /guidelines/schema`**: Returns the JSON Schema specification for Rules v1.
+* **`POST /guidelines/extractions`**: Initiates asynchronous extraction (`sourceType`: `"url"` | `"text"`).
+* **`GET /guidelines/extractions`**: Lists user's extractions with pagination.
+* **`GET /guidelines/extractions/{id}`**: Polling endpoint for live progress and extraction draft.
+* **`POST /guidelines/extractions/{id}/cancel`**: Cancels an in-flight job.
+* **`POST /guidelines/extractions/{id}/confirm`**: Confirms draft and persists as an active `GuidelineRule` version.
+* **`GET /guidelines/rule-sets`**: Lists rule sets with filtering (`search`, `journalId`, `isActive`, `origin`).
+* **`GET /guidelines/rule-sets/{id}`**: Inspects a specific rule set.
+* **`PATCH /guidelines/rule-sets/{id}`**: Updates a rule set (creates a new active version in the lineage if rules changed).
+* **`GET /guidelines/rule-sets/{id}/versions`**: Lists all version history within a lineage.
+* **`POST /guidelines/rule-sets/{id}/activate`**: Re-activates an older version in a lineage.
+* **`POST /guidelines/rule-sets/{id}/copy`**: Duplicates a rule set into a new lineage.
+* **`DELETE /guidelines/rule-sets/{id}`**: Deletes a custom rule set (system seeds are protected).
+* **`GET /journals/{journalId}/guidelines`**: Resolves the effective rule set for a journal.
+* **`PUT /projects/{projectId}/guidelines/{ruleSetId}`**: Links a project to a guideline rule set.
+* **`DELETE /projects/{projectId}/guidelines`**: Unlinks active guideline rule set from a project.
+* **`GET /projects/{projectId}/guidelines`**: Resolves the effective rule set for a project.
+
+### Seed Rule Sets & Evaluation
+PublishAid includes 5 hand-verified seed rule sets (`backend/seed/guideline_rules/`):
+* `ieee_tpami.json`
+* `nature.json`
+* `elsevier_neurocomputing.json`
+* `springer_lncs.json`
+* `acm_tog.json`
+
+To re-seed or evaluate live extraction against the gold standard:
+```bash
+python -m scripts.seed_guideline_rules
+python -m scripts.eval_guidelines
+```
+
+---
+
+## 10. Troubleshooting
 
 * **Port 5434 in use:**
   If a local PostgreSQL server runs on port 5432 or 5433, Docker maps to host port 5434 (`5434:5432`). Ensure `DATABASE_URL` uses `localhost:5434`.
