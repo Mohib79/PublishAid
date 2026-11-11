@@ -356,6 +356,7 @@ async def retry_extraction(
     job.error_code = None
     job.error_message = None
     job.warnings = []
+    job.created_at = datetime.now(timezone.utc)
     job.completed_at = None
     db.commit()
     db.refresh(job)

@@ -57,7 +57,7 @@ class Settings(BaseSettings):
         description="Google Gemini API key for guideline extraction.",
     )
     GEMINI_MODEL: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-flash-lite-latest",
         description="Gemini model name for guideline extraction.",
     )
 

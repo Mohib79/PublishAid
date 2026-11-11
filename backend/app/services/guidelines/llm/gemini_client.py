@@ -27,8 +27,15 @@ from app.services.guidelines.llm.base import (
 
 logger = logging.getLogger(__name__)
 
-# Default Gemini model for extraction
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+# Default Gemini model for extraction and automatic fallback rotation on 429/404/503
+DEFAULT_GEMINI_MODEL = "gemini-flash-lite-latest"
+FALLBACK_GEMINI_MODELS = [
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
+]
 
 
 def load_prompt_template(version: str = "v1") -> tuple[str, str]:
@@ -68,7 +75,12 @@ class GeminiLLMClient(BaseLLMClient):
                 "GEMINI_API_KEY environment variable is not set. Extraction cannot proceed without a valid API key.",
             )
         if self._client is None:
-            self._client = genai.Client(api_key=self.api_key)
+            self._client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(
+                    retry_options=types.HttpRetryOptions(attempts=1),
+                ),
+            )
         return self._client
 
     async def extract_findings(
@@ -96,48 +108,52 @@ class GeminiLLMClient(BaseLLMClient):
             response_mime_type="application/json",
         )
 
-        # Retry logic: rate limits (429) and 5xx get exponential backoff with jitter
-        max_attempts = 3
-        last_error = None
+        # Build candidate models starting with configured model, then fallback rotation
+        candidate_models = [self.model_name] + [
+            m for m in FALLBACK_GEMINI_MODELS if m != self.model_name
+        ]
+        last_error: Any = None
+        response = None
+        used_model = self.model_name
 
-        for attempt in range(1, max_attempts + 1):
+        for candidate_model in candidate_models:
             try:
-                # Run synchronous client call in threadpool with a 30s timeout
+                # Run synchronous client call in threadpool with a 25s timeout
                 response = await asyncio.wait_for(
                     asyncio.to_thread(
                         client.models.generate_content,
-                        model=self.model_name,
+                        model=candidate_model,
                         contents=user_prompt,
                         config=config,
                     ),
-                    timeout=30.0,
+                    timeout=25.0,
                 )
+                used_model = candidate_model
+                self.model_name = candidate_model
                 break
             except asyncio.TimeoutError:
-                last_error = "LLM request timed out after 30 seconds"
-                if attempt == max_attempts:
-                    raise LLMError("LLM_TIMEOUT", "Gemini extraction call timed out after multiple attempts.")
-                await asyncio.sleep(2)
+                last_error = "LLM request timed out after 25 seconds"
+                continue
             except APIError as e:
                 last_error = e
                 status_code = getattr(e, "code", None)
                 if status_code in (401, 403):
                     logger.error("Gemini API authentication failure (401/403). Check GEMINI_API_KEY.")
                     raise LLMError("LLM_CONFIG_ERROR", "Gemini API authentication failed", status_code=status_code)
-                elif status_code == 429:
-                    if attempt == max_attempts:
-                        raise LLMError("LLM_RATE_LIMITED", "Gemini rate limit exceeded after retries", status_code=429)
-                    await asyncio.sleep(2 ** attempt)
-                elif status_code and status_code >= 500:
-                    if attempt == max_attempts:
-                        raise LLMError("LLM_UNAVAILABLE", f"Gemini server error: {e}", status_code=status_code)
-                    await asyncio.sleep(1.5 ** attempt)
+                elif status_code in (429, 404, 500, 502, 503, 504):
+                    # Immediately rotate to next candidate model
+                    continue
                 else:
                     raise LLMError("LLM_UNAVAILABLE", f"Gemini API error: {e}")
             except Exception as e:
-                raise LLMError("LLM_UNAVAILABLE", f"Unexpected error communicating with Gemini: {e}")
+                last_error = e
+                continue
         else:
-            raise LLMError("LLM_UNAVAILABLE", f"Failed to get response after {max_attempts} attempts: {last_error}")
+            if isinstance(last_error, APIError) and getattr(last_error, "code", None) == 429:
+                raise LLMError("LLM_RATE_LIMITED", "Gemini rate limit exceeded across available models", status_code=429)
+            if isinstance(last_error, str) and "timed out" in last_error:
+                raise LLMError("LLM_TIMEOUT", "Gemini extraction call timed out across available models.")
+            raise LLMError("LLM_UNAVAILABLE", f"Failed to get response from Gemini models: {last_error}")
 
         raw_text = response.text or ""
         

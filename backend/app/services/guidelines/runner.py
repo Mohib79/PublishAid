@@ -133,7 +133,7 @@ def find_in_flight_duplicate(
 def find_cached_extraction(
     db: Session, user_id: int, text_hash: str, model_name: str, prompt_version: str = "v1"
 ) -> GuidelineExtraction | None:
-    """Finds a completed extraction for the same user with identical text hash and model/prompt version."""
+    """Finds a completed extraction for the same user with identical text hash and prompt version."""
     return db.scalars(
         select(GuidelineExtraction).where(
             GuidelineExtraction.user_id == user_id,
@@ -141,7 +141,6 @@ def find_cached_extraction(
             GuidelineExtraction.status == "completed",
             GuidelineExtraction.schema_version == 1,
             GuidelineExtraction.prompt_version == prompt_version,
-            GuidelineExtraction.llm_model == model_name,
             GuidelineExtraction.draft.isnot(None),
         ).order_by(GuidelineExtraction.completed_at.desc())
     ).first()
@@ -336,19 +335,23 @@ async def run_extraction_job(extraction_id: int, session_factory) -> None:
 
         # Log activity if linked to a project
         if job.project_id:
-            domain = ""
-            if job.source_url:
-                try:
-                    domain = urlsplit(job.source_url).hostname or ""
-                except Exception:
-                    pass
-            log_activity(
-                db=db,
-                user_id=job.user_id,
-                project_id=job.project_id,
-                event_type="guideline_extracted",
-                details={"domain": domain} if domain else {},
-            )
+            try:
+                domain = ""
+                if job.source_url:
+                    try:
+                        domain = urlsplit(job.source_url).hostname or ""
+                    except Exception:
+                        pass
+                proj_obj = db.get(Project, job.project_id)
+                log_activity(
+                    db=db,
+                    user_id=job.user_id,
+                    project=proj_obj,
+                    event_type="guideline_extracted",
+                    details={"domain": domain, "journalId": job.journal_id} if domain else {"journalId": job.journal_id},
+                )
+            except Exception as e:
+                logger.warning("Failed to log guideline_extracted activity: %s", e)
 
         db.commit()
 
