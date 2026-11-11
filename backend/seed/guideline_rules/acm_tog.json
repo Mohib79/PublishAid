@@ -1,0 +1,49 @@
+{
+  "name": "ACM TOG Guidelines",
+  "journalTitle": "ACM Transactions on Graphics",
+  "journalIssn": "0730-0301",
+  "sourceUrl": "https://tog.acm.org/authors.cfm",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 12000,
+      "maxAbstractWords": 250,
+      "wordLimitExcludes": ["references", "appendices"],
+      "keywords": {
+        "min": 3,
+        "max": 8
+      },
+      "requiredSections": [
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusion",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest"
+      ]
+    },
+    "citation": {
+      "style": "ACM",
+      "numbered": true
+    },
+    "layout": {
+      "columns": "double",
+      "pageSize": "Letter",
+      "fontSizePt": 9.0,
+      "lineSpacing": 1.0
+    },
+    "figures": {
+      "minDpi": 300,
+      "formats": ["pdf", "png"]
+    },
+    "submission": {
+      "fileFormats": ["pdf", "tex"],
+      "reviewType": "double_blind",
+      "coverLetterRequired": true
+    }
+  }
+}

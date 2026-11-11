@@ -8,6 +8,13 @@ import {
   PatchProjectPayload,
   ProjectListResponse,
   ProjectActivityEvent,
+  GuidelineExtractionJob,
+  GuidelineRuleSet,
+  CreateExtractionPayload,
+  ConfirmExtractionPayload,
+  CreateRuleSetPayload,
+  PatchRuleSetPayload,
+  EffectiveRulesResponse,
 } from '../types';
 
 // Storing auth token in localStorage.
@@ -298,4 +305,136 @@ export async function unshortlistJournal(
 export async function getProjectShortlist(projectId: string | number): Promise<Journal[]> {
   return apiRequest<Journal[]>(`/projects/${projectId}/shortlist`, { method: 'GET' }, true);
 }
+
+// ===========================================================================
+// Guideline Extraction & Rule Sets
+// ===========================================================================
+
+export async function getGuidelinesSchema(): Promise<any> {
+  return apiRequest<any>('/guidelines/schema', { method: 'GET' }, true);
+}
+
+export async function createGuidelineExtraction(payload: CreateExtractionPayload): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>('/guidelines/extractions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function getGuidelineExtractions(page = 1, pageSize = 20): Promise<{ items: GuidelineExtractionJob[]; total: number; page: number; pageSize: number }> {
+  return apiRequest<{ items: GuidelineExtractionJob[]; total: number; page: number; pageSize: number }>(
+    `/guidelines/extractions?page=${page}&pageSize=${pageSize}`,
+    { method: 'GET' },
+    true
+  );
+}
+
+export async function getGuidelineExtraction(id: string | number): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>(`/guidelines/extractions/${id}`, { method: 'GET' }, true);
+}
+
+export async function cancelGuidelineExtraction(id: string | number): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>(`/guidelines/extractions/${id}/cancel`, { method: 'POST' }, true);
+}
+
+export async function retryGuidelineExtraction(id: string | number): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>(`/guidelines/extractions/${id}/retry`, { method: 'POST' }, true);
+}
+
+export async function deleteGuidelineExtraction(id: string | number): Promise<void> {
+  return apiRequest<void>(`/guidelines/extractions/${id}`, { method: 'DELETE' }, true);
+}
+
+export async function confirmGuidelineExtraction(
+  id: string | number,
+  payload: ConfirmExtractionPayload
+): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/extractions/${id}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function createGuidelineRuleSet(payload: CreateRuleSetPayload): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>('/guidelines/rule-sets', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function getGuidelineRuleSets(params?: {
+  journalId?: string;
+  isActive?: boolean;
+  origin?: string;
+  scope?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: GuidelineRuleSet[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params?.journalId) query.set('journalId', params.journalId);
+  if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
+  if (params?.origin) query.set('origin', params.origin);
+  if (params?.scope) query.set('scope', params.scope);
+  if (params?.search) query.set('search', params.search);
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+
+  const qs = query.toString();
+  return apiRequest<{ items: GuidelineRuleSet[]; total: number; page: number; pageSize: number }>(
+    `/guidelines/rule-sets${qs ? `?${qs}` : ''}`,
+    { method: 'GET' },
+    true
+  );
+}
+
+export async function getGuidelineRuleSet(id: string | number): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}`, { method: 'GET' }, true);
+}
+
+export async function patchGuidelineRuleSet(
+  id: string | number,
+  payload: PatchRuleSetPayload
+): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function getGuidelineRuleSetVersions(id: string | number): Promise<GuidelineRuleSet[]> {
+  return apiRequest<GuidelineRuleSet[]>(`/guidelines/rule-sets/${id}/versions`, { method: 'GET' }, true);
+}
+
+export async function activateGuidelineRuleSet(id: string | number): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}/activate`, { method: 'POST' }, true);
+}
+
+export async function copyGuidelineRuleSet(id: string | number): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}/copy`, { method: 'POST' }, true);
+}
+
+export async function deleteGuidelineRuleSet(id: string | number): Promise<void> {
+  return apiRequest<void>(`/guidelines/rule-sets/${id}`, { method: 'DELETE' }, true);
+}
+
+export async function getJournalEffectiveGuidelines(journalId: string | number): Promise<EffectiveRulesResponse> {
+  return apiRequest<EffectiveRulesResponse>(`/journals/${journalId}/guidelines`, { method: 'GET' }, true);
+}
+
+export async function linkProjectGuidelineRule(
+  projectId: string | number,
+  ruleSetId: string | number
+): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/projects/${projectId}/guidelines/${ruleSetId}`, { method: 'PUT' }, true);
+}
+
+export async function unlinkProjectGuidelineRule(projectId: string | number): Promise<void> {
+  return apiRequest<void>(`/projects/${projectId}/guidelines`, { method: 'DELETE' }, true);
+}
+
+export async function getProjectEffectiveGuidelines(projectId: string | number): Promise<EffectiveRulesResponse> {
+  return apiRequest<EffectiveRulesResponse>(`/projects/${projectId}/guidelines`, { method: 'GET' }, true);
+}
+
 

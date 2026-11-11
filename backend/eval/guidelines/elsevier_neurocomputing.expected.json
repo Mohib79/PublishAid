@@ -1,0 +1,41 @@
+{
+  "journalTitle": "Neurocomputing",
+  "sourceUrl": "https://www.sciencedirect.com/journal/neurocomputing/publish/guide-for-authors",
+  "dateAccessed": "2026-11-11",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 9000,
+      "maxAbstractWords": 250,
+      "wordLimitExcludes": ["references"],
+      "keywords": {
+        "min": 4,
+        "max": 6
+      },
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability"
+      ]
+    },
+    "citation": {
+      "style": "Elsevier",
+      "numbered": true
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "A4",
+      "fontSizePt": 12.0,
+      "lineSpacing": 1.5
+    },
+    "figures": {
+      "minDpi": 300,
+      "formats": ["tiff", "eps", "jpg"]
+    },
+    "submission": {
+      "fileFormats": ["docx", "tex", "pdf"],
+      "reviewType": "single_blind"
+    }
+  }
+}
+

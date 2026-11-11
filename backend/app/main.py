@@ -7,8 +7,15 @@ from app.api.auth import router as auth_router
 from app.api.journals import router as journals_router
 from app.api.projects import router as projects_router
 from app.api.activity import router as activity_router
+from app.api.guidelines import (
+    router as guidelines_router,
+    journals_guidelines_router,
+    projects_guidelines_router,
+)
 from app.core.config import settings
 from app.tasks.cleanup import BackgroundCleanupRunner
+from app.db.session import SessionLocal
+from app.services.guidelines.runner import sweep_stuck_extractions
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +27,15 @@ async def lifespan(app: FastAPI):
         init_embedder()
     except Exception as e:
         logger.warning(f"Could not warm up embedding model at startup: {e}")
+
+    # Startup sweep: mark stuck extractions (> 10 min) as failed with INTERRUPTED (Section 7.5)
+    try:
+        with SessionLocal() as db:
+            swept = sweep_stuck_extractions(db)
+            if swept > 0:
+                logger.info(f"Startup sweep: cleaned up {swept} stuck guideline extraction jobs.")
+    except Exception as e:
+        logger.warning(f"Startup sweep failed: {e}")
 
     # Start background cleanup runner (runs in dedicated worker thread)
     cleanup_runner = BackgroundCleanupRunner(interval_seconds=settings.CLEANUP_INTERVAL_MINUTES * 60)
@@ -54,6 +70,12 @@ app.include_router(projects_router)
 app.include_router(projects_router, prefix="/api")
 app.include_router(activity_router)
 app.include_router(activity_router, prefix="/api")
+app.include_router(guidelines_router)
+app.include_router(guidelines_router, prefix="/api")
+app.include_router(journals_guidelines_router)
+app.include_router(journals_guidelines_router, prefix="/api")
+app.include_router(projects_guidelines_router)
+app.include_router(projects_guidelines_router, prefix="/api")
 
 
 @app.get("/health", tags=["system"], summary="Service health check")

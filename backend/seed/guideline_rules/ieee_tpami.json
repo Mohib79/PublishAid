@@ -1,0 +1,50 @@
+{
+  "name": "IEEE TPAMI Guidelines",
+  "journalTitle": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+  "journalIssn": "0162-8828",
+  "sourceUrl": "https://www.computer.org/csdl/journal/tp",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 8000,
+      "maxAbstractWords": 250,
+      "wordLimitExcludes": ["references", "figureCaptions"],
+      "keywords": {
+        "min": 4,
+        "max": 6
+      },
+      "requiredSections": [
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability"
+      ]
+    },
+    "citation": {
+      "style": "IEEE",
+      "numbered": true,
+      "maxReferences": 50
+    },
+    "layout": {
+      "columns": "double",
+      "pageSize": "Letter",
+      "fontSizePt": 10.0,
+      "lineSpacing": 1.0
+    },
+    "figures": {
+      "minDpi": 300,
+      "formats": ["tiff", "eps", "pdf"]
+    },
+    "submission": {
+      "fileFormats": ["pdf", "tex", "docx"],
+      "reviewType": "double_blind",
+      "coverLetterRequired": true
+    }
+  }
+}

@@ -3,6 +3,7 @@ from app.db.models.project import Project
 from app.db.models.journal import Journal
 from app.db.models.project_journal import ProjectJournal
 from app.db.models.guideline_rule import GuidelineRule
+from app.db.models.guideline_extraction import GuidelineExtraction
 from app.db.models.template import Template
 from app.db.models.conversion_job import ConversionJob
 from app.db.models.compliance_report import ComplianceReport
@@ -15,6 +16,7 @@ __all__ = [
     "Journal",
     "ProjectJournal",
     "GuidelineRule",
+    "GuidelineExtraction",
     "Template",
     "ConversionJob",
     "ComplianceReport",

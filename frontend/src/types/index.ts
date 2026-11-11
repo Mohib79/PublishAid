@@ -53,6 +53,7 @@ export interface Project {
   targetJournalId?: string;
   targetJournalTitle?: string;
   targetJournal?: TargetJournalMetadata | null;
+  guidelineRuleSet?: { id: string; name: string; version: number; source: string } | null;
   status: ProjectStatus;
   createdAt?: string;
   updatedAt: string;
@@ -126,6 +127,105 @@ export interface ProjectListResponse {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface GuidelineExtractionWarning {
+  code: string;
+  message: string;
+  path?: string | null;
+}
+
+export interface GuidelineExtractionError {
+  code: string;
+  message: string;
+}
+
+export interface GuidelineFieldProvenance {
+  confidence: 'high' | 'medium' | 'low';
+  evidence?: string | null;
+  articleType?: string | null;
+  edited?: boolean;
+}
+
+export interface GuidelineExtractionDraft {
+  schemaVersion: number;
+  rules: Record<string, any>;
+  fields?: Record<string, GuidelineFieldProvenance>;
+  alternatives?: Record<string, Array<{ value: any; evidence?: string | null; articleType?: string | null }>>;
+}
+
+export interface GuidelineExtractionJob {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  step: 'queued' | 'fetching' | 'cleaning' | 'extracting' | 'validating' | 'done';
+  cached: boolean;
+  sourceType: 'url' | 'text';
+  sourceUrl?: string | null;
+  finalUrl?: string | null;
+  journalId?: string | null;
+  projectId?: string | null;
+  source?: {
+    title?: string | null;
+    wordCount: number;
+    language: string;
+    truncated: boolean;
+  } | null;
+  warnings: GuidelineExtractionWarning[];
+  draft?: GuidelineExtractionDraft | null;
+  error?: GuidelineExtractionError | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface GuidelineRuleSet {
+  id: string;
+  name: string;
+  journalId?: string | null;
+  journalTitle?: string | null;
+  origin: 'extracted' | 'manual' | 'seed';
+  version: number;
+  isActive: boolean;
+  isSystem: boolean;
+  schemaVersion: number;
+  rules: Record<string, any>;
+  provenance?: Record<string, any>;
+  sourceUrl?: string | null;
+  lineageId: string;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface CreateExtractionPayload {
+  sourceType: 'url' | 'text';
+  url?: string;
+  text?: string;
+  journalId?: string | null;
+  projectId?: string | null;
+}
+
+export interface ConfirmExtractionPayload {
+  rules: Record<string, any>;
+  name?: string | null;
+  journalId?: string | null;
+  projectId?: string | null;
+  acknowledgedFields?: string[];
+}
+
+export interface CreateRuleSetPayload {
+  name: string;
+  rules: Record<string, any>;
+  journalId?: string | null;
+  sourceUrl?: string | null;
+}
+
+export interface PatchRuleSetPayload {
+  name?: string | null;
+  rules?: Record<string, any> | null;
+}
+
+export interface EffectiveRulesResponse {
+  ruleSet: GuidelineRuleSet | null;
+  source: 'project' | 'user' | 'system' | null;
 }
 
 export interface GuidelineRule {

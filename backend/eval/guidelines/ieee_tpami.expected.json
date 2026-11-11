@@ -1,0 +1,42 @@
+{
+  "journalTitle": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+  "sourceUrl": "https://www.computer.org/csdl/journal/tp",
+  "dateAccessed": "2026-11-11",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 8000,
+      "maxAbstractWords": 250,
+      "wordLimitExcludes": ["references", "figureCaptions"],
+      "keywords": {
+        "min": 4,
+        "max": 6
+      },
+      "requiredStatements": [
+        "dataAvailability",
+        "conflictOfInterest"
+      ]
+    },
+    "citation": {
+      "style": "IEEE",
+      "numbered": true,
+      "maxReferences": 50
+    },
+    "layout": {
+      "columns": "double",
+      "pageSize": "Letter",
+      "fontSizePt": 10.0,
+      "lineSpacing": 1.0
+    },
+    "figures": {
+      "minDpi": 300,
+      "formats": ["tiff", "eps", "pdf"]
+    },
+    "submission": {
+      "fileFormats": ["pdf", "tex", "docx"],
+      "reviewType": "double_blind"
+    }
+  }
+}
+
