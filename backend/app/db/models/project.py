@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from app.db.models.project_journal import ProjectJournal
     from app.db.models.conversion_job import ConversionJob
     from app.db.models.compliance_report import ComplianceReport
+    from app.db.models.guideline_rule import GuidelineRule
 
 class Project(Base):
     __tablename__ = "projects"
@@ -54,6 +55,11 @@ class Project(Base):
     manuscript_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     file_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    guideline_rule_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("guideline_rules.rule_id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -84,6 +90,10 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    guideline_rule: Mapped[GuidelineRule | None] = relationship(
+        "GuidelineRule",
+        back_populates="projects",
     )
 
     __table_args__ = (

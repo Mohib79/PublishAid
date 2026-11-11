@@ -6,6 +6,7 @@ from app.db.models.project import Project
 from app.db.models.journal import Journal
 from app.db.models.project_journal import ProjectJournal
 from app.db.models.guideline_rule import GuidelineRule
+from app.db.models.guideline_extraction import GuidelineExtraction
 from app.db.models.template import Template
 from app.db.models.conversion_job import ConversionJob
 from app.db.models.compliance_report import ComplianceReport
@@ -26,6 +27,7 @@ def test_tables_and_extension_exist(db_session, test_engine):
         "compliance_reports",
         "compliance_issues",
         "activity_logs",
+        "guideline_extractions",
         "alembic_version",
     }
     assert expected_tables.issubset(tables)
@@ -326,4 +328,184 @@ def test_project_journal_is_shortlisted(db_session):
     db_session.flush()
     db_session.refresh(pj)
     assert pj.is_shortlisted is True
+
+
+def test_ge_db_02_guideline_rules_defaults(db_session):
+    rule = GuidelineRule(rules={"max_words": 8000})
+    db_session.add(rule)
+    db_session.flush()
+    db_session.refresh(rule)
+    assert rule.name == "Default Rules"
+    assert rule.origin == "seed"
+    assert rule.schema_version == 1
+    assert rule.provenance == {}
+    assert rule.owner_user_id is None
+    assert rule.lineage_id is None
+    assert rule.is_active is True
+
+
+def test_ge_db_05_active_version_per_lineage_partial_unique(db_session):
+    r1 = GuidelineRule(rules={"v": 1}, is_active=True)
+    db_session.add(r1)
+    db_session.flush()
+
+    with pytest.raises(IntegrityError):
+        with db_session.begin_nested():
+            r2 = GuidelineRule(lineage_id=r1.rule_id, rules={"v": 2}, is_active=True)
+            db_session.add(r2)
+            db_session.flush()
+
+
+def test_ge_db_06_to_09_active_rules_owner_journal_constraints(db_session):
+    u1 = User(full_name="U1", email="u1_gr@test.com", password_hash="h")
+    u2 = User(full_name="U2", email="u2_gr@test.com", password_hash="h")
+    j1 = Journal(journal_title="J1", publisher="P", aims_and_scope="S")
+    db_session.add_all([u1, u2, j1])
+    db_session.flush()
+
+    # GE-DB-08: System rule set active for j1
+    sys_rule = GuidelineRule(owner_user_id=None, journal_id=j1.journal_id, is_active=True, rules={"scope": "system"})
+    # GE-DB-07: User 1 active rule set for j1
+    u1_rule = GuidelineRule(owner_user_id=u1.user_id, journal_id=j1.journal_id, is_active=True, rules={"scope": "u1"})
+    # User 2 active rule set for j1
+    u2_rule = GuidelineRule(owner_user_id=u2.user_id, journal_id=j1.journal_id, is_active=True, rules={"scope": "u2"})
+    db_session.add_all([sys_rule, u1_rule, u2_rule])
+    db_session.flush()
+
+    # GE-DB-06: Second active rule set for same user and same journal rejected
+    with pytest.raises(IntegrityError):
+        with db_session.begin_nested():
+            u1_dup = GuidelineRule(owner_user_id=u1.user_id, journal_id=j1.journal_id, is_active=True, rules={"scope": "u1_dup"})
+            db_session.add(u1_dup)
+            db_session.flush()
+
+    # GE-DB-09: Multiple active ad-hoc (no journal) rule sets for same user allowed
+    adhoc1 = GuidelineRule(owner_user_id=u1.user_id, journal_id=None, is_active=True, rules={"adhoc": 1})
+    adhoc2 = GuidelineRule(owner_user_id=u1.user_id, journal_id=None, is_active=True, rules={"adhoc": 2})
+    db_session.add_all([adhoc1, adhoc2])
+    db_session.flush()
+    assert adhoc1.rule_id is not None
+    assert adhoc2.rule_id is not None
+
+
+def test_ge_db_10_extraction_checks_and_ge_db_16_token_counts(db_session):
+    u = User(full_name="Extr User", email="extr_user@test.com", password_hash="h")
+    db_session.add(u)
+    db_session.flush()
+
+    # Invalid source_type
+    with pytest.raises(IntegrityError):
+        with db_session.begin_nested():
+            e_bad = GuidelineExtraction(user_id=u.user_id, source_type="invalid")
+            db_session.add(e_bad)
+            db_session.flush()
+
+    # Negative tokens (GE-DB-16)
+    with pytest.raises(IntegrityError):
+        with db_session.begin_nested():
+            e_neg = GuidelineExtraction(user_id=u.user_id, source_type="text", input_tokens=-1)
+            db_session.add(e_neg)
+            db_session.flush()
+
+    # Valid extraction
+    e_valid = GuidelineExtraction(
+        user_id=u.user_id,
+        source_type="url",
+        source_url="https://example.org/authors",
+        status="queued",
+        step="queued",
+        warnings=[],
+    )
+    db_session.add(e_valid)
+    db_session.flush()
+    assert e_valid.extraction_id is not None
+
+
+def test_ge_db_11_to_15_cascades_and_foreign_keys(db_session):
+    u = User(full_name="Cascade GE", email="cascade_ge@test.com", password_hash="h")
+    db_session.add(u)
+    db_session.flush()
+
+    j = Journal(journal_title="J Cascade GE", publisher="P", aims_and_scope="S")
+    db_session.add(j)
+    db_session.flush()
+
+    r = GuidelineRule(owner_user_id=u.user_id, journal_id=j.journal_id, rules={"w": 5000})
+    db_session.add(r)
+    db_session.flush()
+
+    p = Project(user_id=u.user_id, project_title="Project Linked GE", guideline_rule_id=r.rule_id)
+    db_session.add(p)
+    db_session.flush()
+
+    e = GuidelineExtraction(
+        user_id=u.user_id,
+        journal_id=j.journal_id,
+        project_id=p.project_id,
+        source_type="text",
+        confirmed_rule_id=r.rule_id,
+    )
+    tmpl = Template(journal_id=j.journal_id, rule_id=r.rule_id, template_format="latex", template_file_path="/t.tex")
+    cjob = ConversionJob(project_id=p.project_id, conversion_type="format_conversion", target_guideline_id=r.rule_id)
+    rep = ComplianceReport(project_id=p.project_id, rule_id=r.rule_id, overall_status="passed")
+    db_session.add_all([e, tmpl, cjob, rep])
+    db_session.flush()
+
+    r_id = r.rule_id
+    p_id = p.project_id
+    e_id = e.extraction_id
+    tmpl_id = tmpl.template_id
+    cjob_id = cjob.job_id
+    rep_id = rep.report_id
+
+    # GE-DB-13, 14, 15: Delete rule set -> project.guideline_rule_id, extraction.confirmed_rule_id, template.rule_id, conversion_job.target_guideline_id, compliance_report.rule_id become NULL
+    db_session.delete(r)
+    db_session.flush()
+    db_session.expunge_all()
+
+    assert db_session.get(Project, p_id).guideline_rule_id is None
+    assert db_session.get(GuidelineExtraction, e_id).confirmed_rule_id is None
+    assert db_session.get(Template, tmpl_id).rule_id is None
+    assert db_session.get(ConversionJob, cjob_id).target_guideline_id is None
+    assert db_session.get(ComplianceReport, rep_id).rule_id is None
+
+    # GE-DB-12: Delete journal -> journal_id on rule sets and extractions becomes NULL
+    r2 = GuidelineRule(owner_user_id=u.user_id, journal_id=j.journal_id, rules={"w": 6000})
+    e2 = GuidelineExtraction(user_id=u.user_id, journal_id=j.journal_id, source_type="text")
+    db_session.add_all([r2, e2])
+    db_session.flush()
+    r2_id = r2.rule_id
+    e2_id = e2.extraction_id
+
+    db_session.delete(j)
+    db_session.flush()
+    db_session.expunge_all()
+
+    assert db_session.get(GuidelineRule, r2_id).journal_id is None
+    assert db_session.get(GuidelineExtraction, e2_id).journal_id is None
+
+    # GE-DB-11: Delete user -> extractions and owned rule sets deleted (cascade)
+    db_session.delete(db_session.get(User, u.user_id))
+    db_session.flush()
+    db_session.expunge_all()
+
+    assert db_session.get(GuidelineRule, r2_id) is None
+    assert db_session.get(GuidelineExtraction, e2_id) is None
+
+
+def test_ge_db_17_indexes_exist(db_session, test_engine):
+    inspector = inspect(test_engine)
+    extr_indexes = {ix["name"] for ix in inspector.get_indexes("guideline_extractions")}
+    expected_extr_ix = {
+        "ix_guideline_extractions_user_created",
+        "ix_guideline_extractions_user_status",
+        "ix_guideline_extractions_user_hash",
+    }
+    assert expected_extr_ix.issubset(extr_indexes)
+
+    rules_indexes = {ix["name"] for ix in inspector.get_indexes("guideline_rules")}
+    assert "ix_guideline_rules_owner_journal_active" in rules_indexes
+    assert "uq_guideline_rules_active_lineage" in rules_indexes
+    assert "uq_guideline_rules_owner_journal_active" in rules_indexes
+
 

@@ -16,6 +16,10 @@ ALLOWED_EVENT_DETAILS: dict[str, set[str]] = {
     "journal_unshortlisted": {"journalId"},
     "target_journal_set": {"journalId"},
     "target_journal_cleared": set(),
+    "guideline_extracted": {"journalId", "domain"},
+    "guideline_rules_saved": {"ruleId", "journalId", "version", "origin", "domain"},
+    "guideline_rules_linked": {"ruleId"},
+    "guideline_rules_unlinked": {"ruleId"},
 }
 
 def log_activity(

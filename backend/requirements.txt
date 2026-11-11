@@ -12,3 +12,13 @@ PyJWT
 email-validator
 httpx
 python-multipart
+trafilatura
+beautifulsoup4
+lxml
+lxml_html_clean
+langdetect
+rapidfuzz
+anthropic
+google-genai
+respx
+freezegun

@@ -98,6 +98,23 @@ def run_cleanup_sweep(db: Session, now: datetime | None = None) -> int:
     except Exception as e:
         logger.error(f"Error during orphan sweep: {e}")
 
+    # 3. Sweep unconfirmed guideline extractions older than 30 days (Section 7.5)
+    try:
+        from app.db.models.guideline_extraction import GuidelineExtraction
+        retention_cutoff = now - timedelta(days=30)
+        old_extractions = db.scalars(
+            select(GuidelineExtraction).where(
+                GuidelineExtraction.confirmed_rule_id.is_(None),
+                GuidelineExtraction.created_at <= retention_cutoff,
+            )
+        ).all()
+        for ext in old_extractions:
+            db.delete(ext)
+        if old_extractions:
+            db.commit()
+    except Exception as e:
+        logger.error(f"Error purging old unconfirmed guideline extractions: {e}")
+
     return purged_count
 
 

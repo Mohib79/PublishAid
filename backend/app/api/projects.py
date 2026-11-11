@@ -22,6 +22,7 @@ from app.schemas.project import (
     ProjectListItemOut,
     ProjectListResponse,
     ProjectOverviewOut,
+    ProjectGuidelineRuleSetInfo,
     TargetJournalInfo,
     ProjectCounts,
     ManuscriptInfo,
@@ -29,6 +30,7 @@ from app.schemas.project import (
     ShortlistBody,
 )
 from app.services.activity import log_activity
+from app.services.guidelines.ruleset_service import resolve_effective_rule_for_project
 from app.services.projects import (
     get_owned_project_or_404,
     check_project_limit,
@@ -302,6 +304,19 @@ def get_project_overview(
         for log in recent_logs
     ]
 
+    # Effective guideline rule set
+    eff_rule, eff_source = resolve_effective_rule_for_project(db, project)
+    rule_set_info = (
+        ProjectGuidelineRuleSetInfo(
+            id=str(eff_rule.rule_id),
+            name=eff_rule.name,
+            version=eff_rule.version,
+            source=eff_source or "project",
+        )
+        if eff_rule
+        else None
+    )
+
     return ProjectOverviewOut(
         id=str(project.project_id),
         title=project.project_title,
@@ -315,6 +330,7 @@ def get_project_overview(
         manuscript=build_manuscript_info(project, db),
         shortlisted_count=sl_count,
         target_journal=target_info,
+        guideline_rule_set=rule_set_info,
         counts=ProjectCounts(conversions=0, compliance_reports=0),
         recent_activity=activity_items,
     )

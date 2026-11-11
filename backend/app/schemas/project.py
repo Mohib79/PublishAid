@@ -101,6 +101,15 @@ class ProjectListResponse(BaseModel):
     page_size: int
 
 
+class ProjectGuidelineRuleSetInfo(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    id: str
+    name: str
+    version: int
+    source: str  # "project", "user", "system"
+
+
 class ProjectOverviewOut(BaseModel):
     """Workspace overview response with counts and recent activity."""
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -117,6 +126,7 @@ class ProjectOverviewOut(BaseModel):
     manuscript: Optional[ManuscriptInfo] = None
     shortlisted_count: int = 0
     target_journal: Optional[TargetJournalInfo] = None
+    guideline_rule_set: Optional[ProjectGuidelineRuleSetInfo] = None
     counts: ProjectCounts = Field(default_factory=ProjectCounts)
     recent_activity: list[ActivityItemOut] = Field(default_factory=list)
 

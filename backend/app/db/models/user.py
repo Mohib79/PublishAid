@@ -8,6 +8,8 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.db.models.project import Project
+    from app.db.models.guideline_rule import GuidelineRule
+    from app.db.models.guideline_extraction import GuidelineExtraction
 
 class User(Base):
     __tablename__ = "users"
@@ -25,6 +27,18 @@ class User(Base):
     projects: Mapped[list[Project]] = relationship(
         "Project",
         back_populates="owner",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    guideline_rules: Mapped[list[GuidelineRule]] = relationship(
+        "GuidelineRule",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    guideline_extractions: Mapped[list[GuidelineExtraction]] = relationship(
+        "GuidelineExtraction",
+        back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
