@@ -1021,19 +1021,19 @@ Funding, Conflict of Interest, and Data Availability.
 
               {/* Category Editors */}
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-6">
-                {/* 1. DOCUMENT STRUCTURE */}
+                {/* 1. DOCUMENT STRUCTURE (general & layout) */}
                 {reviewCategory === 'documentStructure' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
                     {/* Word Count Max */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Word Count Max</label>
-                        {renderConfidenceBadge('documentStructure.wordCountMax')}
+                        {renderConfidenceBadge('general.maxWords')}
                       </div>
                       <input
                         type="number"
-                        value={reviewRules.documentStructure?.wordCountMax ?? ''}
-                        onChange={(e) => updateRuleField('documentStructure', 'wordCountMax', e.target.value ? Number(e.target.value) : null)}
+                        value={reviewRules.general?.maxWords ?? ''}
+                        onChange={(e) => updateRuleField('general', 'maxWords', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                         placeholder="e.g. 8000"
                       />
@@ -1043,12 +1043,12 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Abstract Limit (words)</label>
-                        {renderConfidenceBadge('documentStructure.abstractMaxWords')}
+                        {renderConfidenceBadge('general.maxAbstractWords')}
                       </div>
                       <input
                         type="number"
-                        value={reviewRules.documentStructure?.abstractMaxWords ?? ''}
-                        onChange={(e) => updateRuleField('documentStructure', 'abstractMaxWords', e.target.value ? Number(e.target.value) : null)}
+                        value={reviewRules.general?.maxAbstractWords ?? ''}
+                        onChange={(e) => updateRuleField('general', 'maxAbstractWords', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                         placeholder="e.g. 250"
                       />
@@ -1058,15 +1058,17 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Column Layout</label>
-                        {renderConfidenceBadge('documentStructure.columns')}
+                        {renderConfidenceBadge('layout.columns')}
                       </div>
                       <select
-                        value={reviewRules.documentStructure?.columns ?? 1}
-                        onChange={(e) => updateRuleField('documentStructure', 'columns', Number(e.target.value))}
+                        value={reviewRules.layout?.columns ?? ''}
+                        onChange={(e) => updateRuleField('layout', 'columns', e.target.value || null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                       >
-                        <option value={1}>Single Column (1)</option>
-                        <option value={2}>Double Column (2)</option>
+                        <option value="">Unspecified</option>
+                        <option value="single">Single Column</option>
+                        <option value="double">Double Column</option>
+                        <option value="either">Either (Single or Double)</option>
                       </select>
                     </div>
 
@@ -1074,16 +1076,17 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Line Spacing</label>
-                        {renderConfidenceBadge('documentStructure.lineSpacing')}
+                        {renderConfidenceBadge('layout.lineSpacing')}
                       </div>
                       <select
-                        value={reviewRules.documentStructure?.lineSpacing ?? 'single'}
-                        onChange={(e) => updateRuleField('documentStructure', 'lineSpacing', e.target.value)}
+                        value={reviewRules.layout?.lineSpacing ?? ''}
+                        onChange={(e) => updateRuleField('layout', 'lineSpacing', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                       >
-                        <option value="single">Single (1.0)</option>
-                        <option value="1.5">1.5 Lines</option>
-                        <option value="double">Double (2.0)</option>
+                        <option value="">Unspecified</option>
+                        <option value={1}>Single (1.0)</option>
+                        <option value={1.5}>1.5 Lines</option>
+                        <option value={2}>Double (2.0)</option>
                       </select>
                     </div>
 
@@ -1091,12 +1094,12 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Font Family</label>
-                        {renderConfidenceBadge('documentStructure.fontFamily')}
+                        {renderConfidenceBadge('layout.fontFamily')}
                       </div>
                       <input
                         type="text"
-                        value={reviewRules.documentStructure?.fontFamily ?? ''}
-                        onChange={(e) => updateRuleField('documentStructure', 'fontFamily', e.target.value)}
+                        value={reviewRules.layout?.fontFamily ?? ''}
+                        onChange={(e) => updateRuleField('layout', 'fontFamily', e.target.value || null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                         placeholder="e.g. Times New Roman"
                       />
@@ -1106,13 +1109,13 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Body Font Size (pt)</label>
-                        {renderConfidenceBadge('documentStructure.fontSizePt')}
+                        {renderConfidenceBadge('layout.fontSizePt')}
                       </div>
                       <input
                         type="number"
                         step="0.5"
-                        value={reviewRules.documentStructure?.fontSizePt ?? 10}
-                        onChange={(e) => updateRuleField('documentStructure', 'fontSizePt', Number(e.target.value))}
+                        value={reviewRules.layout?.fontSizePt ?? ''}
+                        onChange={(e) => updateRuleField('layout', 'fontSizePt', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                         placeholder="e.g. 10"
                       />
@@ -1127,53 +1130,60 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Citation Style</label>
-                        {renderConfidenceBadge('citations.style')}
+                        {renderConfidenceBadge('citation.style')}
                       </div>
                       <select
-                        value={reviewRules.citations?.style ?? 'vancouver'}
-                        onChange={(e) => updateRuleField('citations', 'style', e.target.value)}
+                        value={reviewRules.citation?.style ?? ''}
+                        onChange={(e) => updateRuleField('citation', 'style', e.target.value || null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                       >
-                        <option value="vancouver">Vancouver (Numbered [1])</option>
-                        <option value="ieee">IEEE</option>
-                        <option value="apa">APA 7th</option>
-                        <option value="harvard">Harvard (Author-Date)</option>
-                        <option value="nature">Nature Format</option>
-                        <option value="chicago">Chicago</option>
+                        <option value="">Unspecified</option>
+                        <option value="Vancouver">Vancouver (Numbered)</option>
+                        <option value="IEEE">IEEE</option>
+                        <option value="APA">APA</option>
+                        <option value="Harvard">Harvard (Author-Date)</option>
+                        <option value="Nature">Nature</option>
+                        <option value="Springer">Springer</option>
+                        <option value="Elsevier">Elsevier</option>
+                        <option value="ACM">ACM</option>
+                        <option value="Chicago">Chicago</option>
+                        <option value="MLA">MLA</option>
+                        <option value="ACS">ACS</option>
+                        <option value="AMA">AMA</option>
+                        <option value="Other">Other</option>
                       </select>
                     </div>
 
-                    {/* Citation Format */}
+                    {/* Numbered Citations */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Citation Format</label>
-                        {renderConfidenceBadge('citations.format')}
+                        <label className="text-xs font-semibold text-slate-700">Numbered Citations</label>
+                        {renderConfidenceBadge('citation.numbered')}
                       </div>
                       <select
-                        value={reviewRules.citations?.format ?? 'numeric_bracket'}
-                        onChange={(e) => updateRuleField('citations', 'format', e.target.value)}
+                        value={reviewRules.citation?.numbered === true ? 'true' : reviewRules.citation?.numbered === false ? 'false' : ''}
+                        onChange={(e) => updateRuleField('citation', 'numbered', e.target.value === '' ? null : e.target.value === 'true')}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                       >
-                        <option value="numeric_bracket">Numbered bracket [1]</option>
-                        <option value="superscript">Superscript¹</option>
-                        <option value="author_year">Author-Date (Smith 2020)</option>
+                        <option value="">Unspecified</option>
+                        <option value="true">Yes (Numbered [1] / Superscript)</option>
+                        <option value="false">No (Author-Year)</option>
                       </select>
                     </div>
 
-                    {/* Bibliography Sort */}
+                    {/* Max References */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Bibliography Order</label>
-                        {renderConfidenceBadge('citations.bibliographySort')}
+                        <label className="text-xs font-semibold text-slate-700">Max References Limit</label>
+                        {renderConfidenceBadge('citation.maxReferences')}
                       </div>
-                      <select
-                        value={reviewRules.citations?.bibliographySort ?? 'appearance'}
-                        onChange={(e) => updateRuleField('citations', 'bibliographySort', e.target.value)}
+                      <input
+                        type="number"
+                        value={reviewRules.citation?.maxReferences ?? ''}
+                        onChange={(e) => updateRuleField('citation', 'maxReferences', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="appearance">Order of Appearance</option>
-                        <option value="alphabetical">Alphabetical by Author</option>
-                      </select>
+                        placeholder="e.g. 50"
+                      />
                     </div>
                   </div>
                 )}
@@ -1185,48 +1195,45 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Minimum DPI / Resolution</label>
-                        {renderConfidenceBadge('figuresAndTables.minDpi')}
+                        {renderConfidenceBadge('figures.minDpi')}
                       </div>
                       <input
                         type="number"
-                        value={reviewRules.figuresAndTables?.minDpi ?? 300}
-                        onChange={(e) => updateRuleField('figuresAndTables', 'minDpi', Number(e.target.value))}
+                        value={reviewRules.figures?.minDpi ?? ''}
+                        onChange={(e) => updateRuleField('figures', 'minDpi', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                         placeholder="e.g. 300"
                       />
                     </div>
 
-                    {/* Placement */}
+                    {/* Max Figures */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Figure Placement</label>
-                        {renderConfidenceBadge('figuresAndTables.placement')}
+                        <label className="text-xs font-semibold text-slate-700">Max Figures</label>
+                        {renderConfidenceBadge('figures.maxFigures')}
                       </div>
-                      <select
-                        value={reviewRules.figuresAndTables?.placement ?? 'inline'}
-                        onChange={(e) => updateRuleField('figuresAndTables', 'placement', e.target.value)}
+                      <input
+                        type="number"
+                        value={reviewRules.figures?.maxFigures ?? ''}
+                        onChange={(e) => updateRuleField('figures', 'maxFigures', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="inline">Inline with text</option>
-                        <option value="end_of_manuscript">End of Manuscript</option>
-                        <option value="separate_files">Separate Uploads</option>
-                      </select>
+                        placeholder="e.g. 6"
+                      />
                     </div>
 
-                    {/* Caption Position */}
+                    {/* Max Tables */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Figure Caption Position</label>
-                        {renderConfidenceBadge('figuresAndTables.captionPosition')}
+                        <label className="text-xs font-semibold text-slate-700">Max Tables</label>
+                        {renderConfidenceBadge('figures.maxTables')}
                       </div>
-                      <select
-                        value={reviewRules.figuresAndTables?.captionPosition ?? 'below'}
-                        onChange={(e) => updateRuleField('figuresAndTables', 'captionPosition', e.target.value)}
+                      <input
+                        type="number"
+                        value={reviewRules.figures?.maxTables ?? ''}
+                        onChange={(e) => updateRuleField('figures', 'maxTables', e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="below">Below figure</option>
-                        <option value="above">Above figure</option>
-                      </select>
+                        placeholder="e.g. 4"
+                      />
                     </div>
                   </div>
                 )}
@@ -1238,13 +1245,14 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Peer Review Anonymity</label>
-                        {renderConfidenceBadge('submissionStyle.reviewType')}
+                        {renderConfidenceBadge('submission.reviewType')}
                       </div>
                       <select
-                        value={reviewRules.submissionStyle?.reviewType ?? 'single_blind'}
-                        onChange={(e) => updateRuleField('submissionStyle', 'reviewType', e.target.value)}
+                        value={reviewRules.submission?.reviewType ?? ''}
+                        onChange={(e) => updateRuleField('submission', 'reviewType', e.target.value || null)}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                       >
+                        <option value="">Unspecified</option>
                         <option value="single_blind">Single Blind (Authors known to reviewers)</option>
                         <option value="double_blind">Double Blind (Fully anonymized)</option>
                         <option value="open">Open Peer Review</option>
@@ -1255,32 +1263,33 @@ Funding, Conflict of Interest, and Data Availability.
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-slate-700">Cover Letter Mandatory</label>
-                        {renderConfidenceBadge('submissionStyle.coverLetterRequired')}
+                        {renderConfidenceBadge('submission.coverLetterRequired')}
                       </div>
                       <select
-                        value={reviewRules.submissionStyle?.coverLetterRequired ? 'yes' : 'no'}
-                        onChange={(e) => updateRuleField('submissionStyle', 'coverLetterRequired', e.target.value === 'yes')}
+                        value={reviewRules.submission?.coverLetterRequired === true ? 'true' : reviewRules.submission?.coverLetterRequired === false ? 'false' : ''}
+                        onChange={(e) => updateRuleField('submission', 'coverLetterRequired', e.target.value === '' ? null : e.target.value === 'true')}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                       >
-                        <option value="yes">Yes, Mandatory</option>
-                        <option value="no">No, Optional</option>
+                        <option value="">Unspecified</option>
+                        <option value="true">Yes, Mandatory</option>
+                        <option value="false">No, Optional</option>
                       </select>
                     </div>
 
-                    {/* Keywords Separator */}
+                    {/* Highlights Required */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Keyword Separator</label>
-                        {renderConfidenceBadge('submissionStyle.keywordSeparator')}
+                        <label className="text-xs font-semibold text-slate-700">Highlights Mandatory</label>
+                        {renderConfidenceBadge('submission.highlightsRequired')}
                       </div>
                       <select
-                        value={reviewRules.submissionStyle?.keywordSeparator ?? ';'}
-                        onChange={(e) => updateRuleField('submissionStyle', 'keywordSeparator', e.target.value)}
+                        value={reviewRules.submission?.highlightsRequired === true ? 'true' : reviewRules.submission?.highlightsRequired === false ? 'false' : ''}
+                        onChange={(e) => updateRuleField('submission', 'highlightsRequired', e.target.value === '' ? null : e.target.value === 'true')}
                         className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
                       >
-                        <option value=";">Semicolon (;)</option>
-                        <option value=",">Comma (,)</option>
-                        <option value="bullet">Bullet (•)</option>
+                        <option value="">Unspecified</option>
+                        <option value="true">Yes, Mandatory</option>
+                        <option value="false">No, Optional</option>
                       </select>
                     </div>
                   </div>
@@ -1348,9 +1357,12 @@ Funding, Conflict of Interest, and Data Availability.
           {/* Grid of Rule Sets */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredRuleSets.map((rs) => {
-              const doc = rs.rules?.documentStructure;
-              const cite = rs.rules?.citations;
-              const sub = rs.rules?.submissionStyle;
+              const gen = rs.rules?.general || rs.rules?.documentStructure;
+              const lay = rs.rules?.layout || rs.rules?.documentStructure;
+              const cite = rs.rules?.citation || rs.rules?.citations;
+              const sub = rs.rules?.submission || rs.rules?.submissionStyle;
+              const maxWordsVal = gen?.maxWords ?? gen?.wordCountMax;
+              const colsVal = lay?.columns;
               const isSeed = rs.isSystem || rs.origin === 'seed';
 
               return (
@@ -1408,25 +1420,31 @@ Funding, Conflict of Interest, and Data Availability.
                       <div>
                         <span className="text-slate-400 block text-[10px]">Max Words</span>
                         <span className="font-semibold text-slate-700">
-                          {doc?.wordCountMax ? `${doc.wordCountMax.toLocaleString()} words` : 'Unspecified'}
+                          {maxWordsVal ? `${Number(maxWordsVal).toLocaleString()} words` : 'Unspecified'}
                         </span>
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[10px]">Layout</span>
                         <span className="font-semibold text-slate-700">
-                          {doc?.columns === 2 ? 'Double Column' : 'Single Column'}
+                          {colsVal === 2 || colsVal === 'double'
+                            ? 'Double Column'
+                            : colsVal === 1 || colsVal === 'single'
+                            ? 'Single Column'
+                            : colsVal === 'either'
+                            ? 'Single / Double'
+                            : 'Unspecified'}
                         </span>
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[10px]">Citation Style</span>
                         <span className="font-semibold text-slate-700 capitalize">
-                          {cite?.style || 'Vancouver'}
+                          {cite?.style || 'Unspecified'}
                         </span>
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[10px]">Review Type</span>
                         <span className="font-semibold text-slate-700 capitalize">
-                          {(sub?.reviewType || 'Single Blind').replace('_', ' ')}
+                          {sub?.reviewType ? String(sub.reviewType).replace('_', ' ') : 'Unspecified'}
                         </span>
                       </div>
                     </div>
