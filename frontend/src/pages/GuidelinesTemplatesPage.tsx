@@ -43,6 +43,8 @@ import {
   activateGuidelineRuleSet,
   copyGuidelineRuleSet,
   deleteGuidelineRuleSet,
+  retryGuidelineExtraction,
+  deleteGuidelineExtraction,
   linkProjectGuidelineRule
 } from '../lib/api';
 import {
@@ -256,6 +258,18 @@ export const GuidelinesTemplatesPage: React.FC = () => {
       loadRecentExtractions();
     } catch (err: any) {
       alert(`Could not cancel job: ${err.message}`);
+    }
+  };
+
+  const handleRetryJob = async (jobId: string) => {
+    try {
+      const job = await retryGuidelineExtraction(jobId);
+      setCurrentJob(job);
+      setExtractionSubStep('processing');
+      startPolling(job.id);
+      loadRecentExtractions();
+    } catch (err: any) {
+      alert(`Could not retry extraction: ${err.message}`);
     }
   };
 
@@ -796,23 +810,48 @@ Funding, Conflict of Interest, and Data Availability.
                             <div className="font-semibold text-slate-800 truncate">
                               {safeHostname(ext.sourceUrl)}
                             </div>
-                            <div className="text-[10px] text-slate-400">
-                              {safeFormatDate(ext.createdAt)} · {ext.status}
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                              <span>{safeFormatDate(ext.createdAt)}</span>
+                              <span>•</span>
+                              <span className={`font-semibold capitalize ${
+                                ext.status === 'completed'
+                                  ? 'text-emerald-600'
+                                  : ext.status === 'failed'
+                                  ? 'text-rose-600'
+                                  : 'text-amber-600'
+                              }`}>
+                                {ext.status}
+                              </span>
+                              {ext.status === 'failed' && ext.error?.message && (
+                                <span className="text-[10px] text-rose-500 truncate max-w-[120px]" title={ext.error.message}>
+                                  ({ext.error.message})
+                                </span>
+                              )}
                             </div>
                           </div>
-                          {ext.status === 'completed' && (
-                            <button
-                              onClick={() => resumeExtractionReview(ext)}
-                              className="text-[11px] font-bold text-[#0F766E] hover:bg-teal-50 px-2 py-1 rounded"
-                            >
-                              Review
-                            </button>
-                          )}
-                          {ext.status === 'running' && (
-                            <span className="text-[10px] text-amber-600 flex items-center gap-1">
-                              <Loader2 className="w-3 h-3 animate-spin" /> In progress
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {ext.status === 'completed' && (
+                              <button
+                                onClick={() => resumeExtractionReview(ext)}
+                                className="text-[11px] font-bold text-[#0F766E] bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg"
+                              >
+                                Review
+                              </button>
+                            )}
+                            {ext.status === 'failed' && (
+                              <button
+                                onClick={() => handleRetryJob(ext.id)}
+                                className="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-lg"
+                              >
+                                Retry
+                              </button>
+                            )}
+                            {ext.status === 'running' && (
+                              <span className="text-[10px] text-amber-600 flex items-center gap-1">
+                                <Loader2 className="w-3 h-3 animate-spin" /> In progress
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
