@@ -9,3 +9,5 @@ htmlcov/
 *.log
 .cache/
 storage/
+eval/guidelines/*.txt
+

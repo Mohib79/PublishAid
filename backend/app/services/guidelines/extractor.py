@@ -397,3 +397,37 @@ async def orchestrate_extraction(
     }
 
     return draft, warnings, token_usage
+
+
+class PipelineResult:
+    def __init__(self, draft: dict[str, Any], warnings: list[dict[str, str]], input_tokens: int = 0, output_tokens: int = 0):
+        self.draft = draft
+        self.warnings = warnings
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+
+async def run_extraction_pipeline(
+    raw_text: str,
+    is_html: bool = False,
+    client: BaseLLMClient | None = None,
+) -> PipelineResult:
+    """End-to-end extraction pipeline helper for evaluation and direct processing."""
+    from app.services.guidelines.cleaner import clean_guideline_content
+    from app.services.guidelines.chunker import build_text_chunks
+    from app.services.guidelines.llm.gemini_client import GeminiLLMClient
+
+    if client is None:
+        client = GeminiLLMClient()
+
+    cleaned_text, _, _ = clean_guideline_content(raw_text, is_html=is_html)
+    chunks, _ = build_text_chunks(cleaned_text)
+    draft, warnings, tokens = await orchestrate_extraction(chunks, client, source_text=cleaned_text)
+    return PipelineResult(
+        draft=draft,
+        warnings=warnings,
+        input_tokens=tokens.get("input_tokens", 0),
+        output_tokens=tokens.get("output_tokens", 0),
+    )
+
+

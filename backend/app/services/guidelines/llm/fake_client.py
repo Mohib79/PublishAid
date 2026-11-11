@@ -93,3 +93,4 @@ class FakeLLMClient(BaseLLMClient):
                 for f in self.canned_findings
             ]),
         )
+

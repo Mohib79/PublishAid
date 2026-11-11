@@ -51,6 +51,16 @@ class Settings(BaseSettings):
         description="Device to run embedding model on (cpu or cuda).",
     )
 
+    # Guideline Extraction settings
+    GEMINI_API_KEY: str | None = Field(
+        default=None,
+        description="Google Gemini API key for guideline extraction.",
+    )
+    GEMINI_MODEL: str = Field(
+        default="gemini-2.5-flash",
+        description="Gemini model name for guideline extraction.",
+    )
+
     # Workspace settings
     MAX_PROJECTS_PER_USER: int = Field(
         default=50,

@@ -16,6 +16,7 @@ from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 
+from app.core.config import settings
 from app.services.guidelines.llm.base import (
     BaseLLMClient,
     Finding,
@@ -53,8 +54,8 @@ class GeminiLLMClient(BaseLLMClient):
         model_name: str | None = None,
         prompt_version: str = "v1",
     ):
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
-        self.model_name = model_name or os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        self.api_key = api_key or settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+        self.model_name = model_name or settings.GEMINI_MODEL or os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         self.prompt_version = prompt_version
 
         self.system_prompt, self.user_template = load_prompt_template(self.prompt_version)
@@ -174,3 +175,4 @@ class GeminiLLMClient(BaseLLMClient):
             prompt_version=self.prompt_version,
             raw_response=raw_text,
         )
+

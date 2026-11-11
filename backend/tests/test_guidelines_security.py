@@ -239,3 +239,4 @@ async def test_ge_sec_15_pasted_text_user_isolation(test_user_a, test_user_b, db
         # User B cannot access User A's extraction at all
         r_b = await ac.get(f"/guidelines/extractions/{job.extraction_id}", headers=hb)
         assert r_b.status_code == 404
+

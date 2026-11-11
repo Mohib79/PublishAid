@@ -415,3 +415,4 @@ async def test_ge_inj_08_javascript_template_url_rejected():
     with pytest.raises(Exception):
         from app.services.guidelines.schema import SubmissionRules
         SubmissionRules(templateUrl="javascript:alert(1)")
+

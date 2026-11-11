@@ -102,3 +102,4 @@ class BaseLLMClient(abc.ABC):
         Extracts findings from a guideline chunk.
         """
         pass
+

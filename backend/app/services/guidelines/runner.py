@@ -351,3 +351,4 @@ async def run_extraction_job(extraction_id: int, session_factory) -> None:
             )
 
         db.commit()
+
