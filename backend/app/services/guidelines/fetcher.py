@@ -21,7 +21,7 @@ MAX_BODY_BYTES = 3 * 1024 * 1024  # 3 MB
 CONNECT_TIMEOUT_SECONDS = 5.0
 TOTAL_TIMEOUT_SECONDS = 15.0
 MAX_REDIRECTS = 5
-USER_AGENT = "PublishAid-Bot/1.0 (+https://publishaid.org/bot)"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 (PublishAid-Bot/1.0)"
 
 # Carrier-grade NAT (100.64.0.0/10) and IPv6 Unique Local (fc00::/7)
 CARRIER_GRADE_NAT = ipaddress.ip_network("100.64.0.0/10")
@@ -362,7 +362,7 @@ async def safe_fetch_url(
     current_url = url
     initial_normalized_url, _, _ = normalize_and_validate_url(url)
     redirect_count = 0
-    seen_urls = set()
+    seen_urls: dict[str, int] = {}
 
     start_time = time.time()
 
@@ -379,9 +379,10 @@ async def safe_fetch_url(
 
             norm_url, host, port = normalize_and_validate_url(current_url)
             
-            if norm_url in seen_urls:
+            visits = seen_urls.get(norm_url, 0)
+            if visits >= 2:
                 raise FetchError("UNREACHABLE", "Redirect loop detected")
-            seen_urls.add(norm_url)
+            seen_urls[norm_url] = visits + 1
 
             # SSRF check on every hop
             verified_ips = resolve_and_verify_host(host, port)
@@ -414,6 +415,7 @@ async def safe_fetch_url(
 
             # Check redirects (3xx)
             if response.status_code in (301, 302, 303, 307, 308):
+                client.cookies.extract_cookies(response)
                 redirect_count += 1
                 if redirect_count > MAX_REDIRECTS:
                     await response.aclose()

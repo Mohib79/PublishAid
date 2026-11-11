@@ -192,7 +192,7 @@ async def create_extraction(
     text_hash = None
     if data.source_type == "url":
         try:
-            normalized_url = normalize_and_validate_url(data.url)
+            normalized_url, _, _ = normalize_and_validate_url(data.url)
         except FetchError as fe:
             raise HTTPException(status_code=422, detail=fe.message)
     else:
