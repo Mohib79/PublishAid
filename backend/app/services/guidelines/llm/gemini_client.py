@@ -102,14 +102,22 @@ class GeminiLLMClient(BaseLLMClient):
 
         for attempt in range(1, max_attempts + 1):
             try:
-                # Run synchronous client call in threadpool to avoid blocking event loop
-                response = await asyncio.to_thread(
-                    client.models.generate_content,
-                    model=self.model_name,
-                    contents=user_prompt,
-                    config=config,
+                # Run synchronous client call in threadpool with a 30s timeout
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        client.models.generate_content,
+                        model=self.model_name,
+                        contents=user_prompt,
+                        config=config,
+                    ),
+                    timeout=30.0,
                 )
                 break
+            except asyncio.TimeoutError:
+                last_error = "LLM request timed out after 30 seconds"
+                if attempt == max_attempts:
+                    raise LLMError("LLM_TIMEOUT", "Gemini extraction call timed out after multiple attempts.")
+                await asyncio.sleep(2)
             except APIError as e:
                 last_error = e
                 status_code = getattr(e, "code", None)

@@ -275,6 +275,19 @@ def get_extraction(
     if not job or job.user_id != current_user.user_id:
         raise HTTPException(status_code=404, detail="Guideline extraction not found")
 
+    # If job has been running or queued for longer than 3 minutes, automatically mark it as interrupted
+    if job.status in ("queued", "running") and job.created_at:
+        now = datetime.now(timezone.utc)
+        created = job.created_at if job.created_at.tzinfo else job.created_at.replace(tzinfo=timezone.utc)
+        if (now - created).total_seconds() > 180:
+            job.status = "failed"
+            job.step = "done"
+            job.error_code = "INTERRUPTED"
+            job.error_message = "Extraction timed out or was interrupted. Please try again."
+            job.completed_at = now
+            db.commit()
+            db.refresh(job)
+
     return build_job_response(job)
 
 

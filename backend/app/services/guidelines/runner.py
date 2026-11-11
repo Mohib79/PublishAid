@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 MAX_CONCURRENT_JOBS_PER_USER = 2
 MAX_DAILY_LLM_JOBS_PER_USER = 20
-STUCK_JOB_TIMEOUT_MINUTES = 10
+STUCK_JOB_TIMEOUT_MINUTES = 3
 
 # Test client override for testing offline with FakeLLMClient
 _GLOBAL_LLM_CLIENT: BaseLLMClient | None = None
