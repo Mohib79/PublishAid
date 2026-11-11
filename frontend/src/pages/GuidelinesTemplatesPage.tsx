@@ -45,14 +45,16 @@ import {
   deleteGuidelineRuleSet,
   retryGuidelineExtraction,
   deleteGuidelineExtraction,
-  linkProjectGuidelineRule
+  linkProjectGuidelineRule,
+  browseJournals
 } from '../lib/api';
 import {
   GuidelineExtractionJob,
   GuidelineRuleSet,
   GuidelineExtractionDraft,
   GuidelineFieldProvenance,
-  Project
+  Project,
+  Journal
 } from '../types';
 
 // Safe URL and Date parser helpers to prevent UI render crashes on malformed data
@@ -109,6 +111,10 @@ export const GuidelinesTemplatesPage: React.FC = () => {
   // Recent Extractions
   const [recentExtractions, setRecentExtractions] = useState<GuidelineExtractionJob[]>([]);
   const [isLoadingRecents, setIsLoadingRecents] = useState(false);
+
+  // Database Catalog Journals
+  const [catalogJournals, setCatalogJournals] = useState<Journal[]>([]);
+  const [isLoadingJournals, setIsLoadingJournals] = useState(false);
 
   // ==========================================
   // RULE SETS LIBRARY STATE
@@ -169,9 +175,24 @@ export const GuidelinesTemplatesPage: React.FC = () => {
     }
   };
 
+  const loadCatalogJournals = async () => {
+    setIsLoadingJournals(true);
+    try {
+      const res = await browseJournals({ limit: 100, sortBy: 'title', sortOrder: 'asc' });
+      if (res && Array.isArray(res.items) && res.items.length > 0) {
+        setCatalogJournals(res.items);
+      }
+    } catch (err) {
+      console.error('Failed to load catalog journals:', err);
+    } finally {
+      setIsLoadingJournals(false);
+    }
+  };
+
   useEffect(() => {
     loadRecentExtractions();
     loadRuleSets();
+    loadCatalogJournals();
   }, []);
 
   // ==========================================
@@ -717,9 +738,9 @@ Funding, Conflict of Interest, and Data Availability.
                       className="w-full px-3 h-[40px] rounded-xl border border-slate-200 text-xs bg-white focus:border-[#0F766E] outline-none"
                     >
                       <option value="">-- None (Standalone Rule Set) --</option>
-                      {journals.map((j) => (
+                      {(catalogJournals.length > 0 ? catalogJournals : journals).map((j) => (
                         <option key={j.id} value={j.id}>
-                          {j.title} ({j.publisher})
+                          {j.title} {j.publisher ? `(${j.publisher})` : ''}
                         </option>
                       ))}
                     </select>
