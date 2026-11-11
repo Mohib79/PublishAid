@@ -428,6 +428,19 @@ export const WorkspaceOverviewPage: React.FC = () => {
                 <p className="text-xs text-slate-500">
                   {project.targetJournal?.publisher ? `Publisher: ${project.targetJournal.publisher}` : 'Selection used for compliance & conversion'}
                 </p>
+
+                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Guideline Rules:</span>
+                  {project.guidelineRuleSet ? (
+                    <span className="font-semibold text-slate-800 bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md border border-teal-100">
+                      {project.guidelineRuleSet.name} (v{project.guidelineRuleSet.version})
+                    </span>
+                  ) : (
+                    <Link to="/guidelines" className="text-teal-700 hover:underline font-semibold">
+                      Set rules &rarr;
+                    </Link>
+                  )}
+                </div>
               </div>
 
               <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-100 space-y-1">
