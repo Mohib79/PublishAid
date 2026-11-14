@@ -306,3 +306,55 @@ export interface ActivityItem {
   timestamp: string;
   type: 'compliance' | 'journal' | 'conversion' | 'project';
 }
+
+export interface CompareCompleteness {
+  available: number;
+  total: number;
+}
+
+export interface CompareProjectContext {
+  isShortlisted: boolean;
+  isTarget: boolean;
+  rawSimilarity?: number | null;
+  matchScore?: number | null;
+}
+
+export interface CompareJournalHeader {
+  id: string;
+  title: string;
+  publisher: string;
+  homepageUrl?: string | null;
+  metadataUpdatedAt?: string | null;
+  completeness: CompareCompleteness;
+  projectContext?: CompareProjectContext | null;
+}
+
+export interface CompareGroup {
+  key: string;
+  label: string;
+}
+
+export interface CompareCellValue {
+  value: any;
+  isBest: boolean;
+}
+
+export interface CompareRow {
+  key: string;
+  label: string;
+  group: string;
+  type: 'text' | 'enum' | 'number' | 'integer' | 'percent' | 'currency' | 'link' | 'longtext' | 'list' | string;
+  direction: 'higher' | 'lower' | 'none' | string;
+  alwaysShow: boolean;
+  note: string;
+  allSame: boolean;
+  values: CompareCellValue[];
+}
+
+export interface JournalCompareResponse {
+  journals: CompareJournalHeader[];
+  groups: CompareGroup[];
+  rows: CompareRow[];
+  notes: string[];
+  generatedAt: string;
+}

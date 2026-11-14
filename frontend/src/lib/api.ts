@@ -15,6 +15,7 @@ import {
   CreateRuleSetPayload,
   PatchRuleSetPayload,
   EffectiveRulesResponse,
+  JournalCompareResponse,
 } from '../types';
 
 // Storing auth token in localStorage.
@@ -86,22 +87,37 @@ export function clearStoredToken(): void {
   }
 }
 
-async function parseErrorMessage(res: Response): Promise<string> {
+export interface ApiError extends Error {
+  status?: number;
+  missingIds?: string[];
+}
+
+async function parseErrorData(res: Response): Promise<{ message: string; missingIds?: string[] }> {
   try {
     const data = await res.json();
+    let message = '';
     if (data && data.detail) {
       if (typeof data.detail === 'string') {
-        return data.detail;
+        message = data.detail;
+      } else if (Array.isArray(data.detail) && data.detail.length > 0) {
+        message = data.detail.map((err: any) => err.msg || JSON.stringify(err)).join(', ');
+      } else {
+        message = JSON.stringify(data.detail);
       }
-      if (Array.isArray(data.detail) && data.detail.length > 0) {
-        return data.detail.map((err: any) => err.msg || JSON.stringify(err)).join(', ');
-      }
-      return JSON.stringify(data.detail);
     }
+    const missingIds = Array.isArray(data?.missingIds)
+      ? data.missingIds.map((id: any) => String(id))
+      : undefined;
+    return {
+      message: message || `Request failed with status ${res.status} (${res.statusText || 'Error'})`,
+      missingIds,
+    };
   } catch {
     // Response was not JSON
   }
-  return `Request failed with status ${res.status} (${res.statusText || 'Error'})`;
+  return {
+    message: `Request failed with status ${res.status} (${res.statusText || 'Error'})`,
+  };
 }
 
 async function apiRequest<T>(
@@ -130,8 +146,13 @@ async function apiRequest<T>(
     if (response.status === 401 && isProtected) {
       clearStoredToken();
     }
-    const message = await parseErrorMessage(response);
-    throw new Error(message);
+    const { message, missingIds } = await parseErrorData(response);
+    const err = new Error(message) as ApiError;
+    err.status = response.status;
+    if (missingIds) {
+      err.missingIds = missingIds;
+    }
+    throw err;
   }
 
   if (response.status === 204) {
@@ -186,6 +207,28 @@ export async function browseJournals(params: BrowseJournalsParams = {}): Promise
 
 export async function getJournalById(journalId: string | number): Promise<Journal> {
   return apiRequest<Journal>(`/journals/${journalId}`, { method: 'GET' }, true);
+}
+
+export async function compareJournals(
+  ids: (string | number)[],
+  projectId?: string | number | null,
+  includeRequirements = false
+): Promise<JournalCompareResponse> {
+  const query = new URLSearchParams();
+  query.set(
+    'ids',
+    ids
+      .map((id) => String(id).trim())
+      .filter(Boolean)
+      .join(',')
+  );
+  if (projectId !== undefined && projectId !== null && String(projectId).trim() !== '') {
+    query.set('projectId', String(projectId).trim());
+  }
+  if (includeRequirements) {
+    query.set('include', 'requirements');
+  }
+  return apiRequest<JournalCompareResponse>(`/journals/compare?${query.toString()}`, { method: 'GET' }, true);
 }
 
 export async function matchJournals(payload: MatchRequest): Promise<MatchResponse> {

@@ -215,6 +215,27 @@ Results on the 20-case benchmark (`backend/eval/results_2026-10-19.md`):
 
 ---
 
+## 8. Journal Comparison & Catalog Browse API
+
+### Overview
+PublishAid provides side-by-side comparison for 2 to 4 candidate journals driven by a centralized server metric registry (`app/services/comparison/registry.py`). Missing metrics strictly resolve to `null` (displayed as `N/A`) rather than being fabricated or estimated, and no composite ranking score is generated.
+
+### Endpoints
+* **`GET /journals/compare`** (and `/api/journals/compare`):
+  * Query parameters:
+    * `ids` (required): comma-separated positive integer journal IDs (2 to 4 unique IDs after deduplication; max 20 raw tokens).
+    * `projectId` (optional): attaches project-specific `matchScore` (calibrated via `to_match_score`), `isShortlisted`, and `isTarget` context if owned by the caller (`404` otherwise).
+    * `include` (optional): supports `requirements` to batch-resolve active user or built-in submission guidelines via `resolve_effective_rules_for_journals` in a single SQL query.
+  * Validation & Error Responses:
+    * `422` for `< 2` or `> 4` unique IDs, malformed IDs, `> 20` raw IDs, or unsupported `include` values.
+    * `404` with `{ "detail": "Journal not found", "missingIds": [...] }` if any requested journal ID does not exist.
+  * Routing Note: Declared before `GET /journals/{journal_id}` in `app/api/journals.py` to avoid path parameter shadowing.
+* **`GET /journals`** and **`GET /journals/browse`**:
+  * Returns paginated `JournalBrowseResponse` (`items`, `total`, `page`, `limit`, `totalPages`, `categories`, `publishers`).
+  * Supports filter and pagination parameter aliases: `subjectCategory` (`category`), `openAccess` (`open_access_type`), `sort` (`sort_by`, including camelCase field names), `order` (`sort_order`), and `pageSize` (`limit`).
+
+---
+
 ## 9. Guideline Extraction & Rule Sets Engine
 
 ### Overview

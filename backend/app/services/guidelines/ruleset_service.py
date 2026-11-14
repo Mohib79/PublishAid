@@ -196,6 +196,50 @@ def resolve_effective_rule_for_journal(
     return None, None
 
 
+def resolve_effective_rules_for_journals(
+    db: Session,
+    user_id: int | None,
+    journal_ids: list[int],
+) -> dict[int, tuple[GuidelineRule, str]]:
+    """
+    Batch-resolves effective rule sets for multiple catalog journals in a single SQL query.
+    User active rule takes precedence ('user') over built-in system active rule ('system').
+    """
+    if not journal_ids:
+        return {}
+
+    unique_ids = list(dict.fromkeys(journal_ids))
+    owner_filter = (
+        or_(GuidelineRule.owner_user_id == user_id, GuidelineRule.owner_user_id.is_(None))
+        if user_id is not None
+        else GuidelineRule.owner_user_id.is_(None)
+    )
+
+    stmt = (
+        select(GuidelineRule)
+        .where(
+            GuidelineRule.journal_id.in_(unique_ids),
+            GuidelineRule.is_active.is_(True),
+            owner_filter,
+        )
+        .order_by(GuidelineRule.updated_at.desc(), GuidelineRule.rule_id.desc())
+    )
+    rules = db.scalars(stmt).all()
+
+    resolved: dict[int, tuple[GuidelineRule, str]] = {}
+    for rule in rules:
+        jid = rule.journal_id
+        if jid is None:
+            continue
+        if user_id is not None and rule.owner_user_id == user_id:
+            if jid not in resolved or resolved[jid][1] != "user":
+                resolved[jid] = (rule, "user")
+        elif rule.owner_user_id is None and jid not in resolved:
+            resolved[jid] = (rule, "system")
+
+    return resolved
+
+
 def resolve_effective_rule_for_project(
     db: Session,
     project: Project,
