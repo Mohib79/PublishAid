@@ -16,14 +16,26 @@ Rules:
 
 Allowed rule paths:
 general.maxWords, general.minWords, general.wordLimitExcludes, general.maxAbstractWords,
-general.abstractStructure, general.keywords.min, general.keywords.max, general.maxTitleChars,
-general.requiredSections, general.requiredStatements,
+general.abstractStructure, general.keywords.min, general.keywords.max, general.keywordSeparator,
+general.maxTitleChars, general.requiredSections, general.requiredStatements,
 citation.style, citation.numbered, citation.maxReferences, citation.notes,
-layout.columns, layout.pageSize, layout.fontFamily, layout.fontSizePt, layout.lineSpacing,
+layout.columns, layout.pageSize, layout.fontFamily, layout.fontSizePt,
+layout.fontSizeTitlePt, layout.fontSizeFigureCaptionPt, layout.fontSizeTableCaptionPt,
+layout.documentClass, layout.lineSpacing,
 layout.marginsCm.top, layout.marginsCm.bottom, layout.marginsCm.left, layout.marginsCm.right, layout.maxPages,
 figures.maxFigures, figures.maxTables, figures.formats, figures.minDpi,
-submission.fileFormats, submission.reviewType, submission.templateUrl, submission.coverLetterRequired, submission.highlightsRequired,
+submission.fileFormats, submission.reviewType, submission.templateUrl,
+submission.coverLetterRequired, submission.highlightsRequired, submission.orcidRequired,
+submission.highlightCount, submission.highlightLengthChars,
 articleTypes, defaultArticleType, other
+
+Field conventions:
+- general.keywordSeparator: "comma", "semicolon", or "bullet"
+- general.requiredStatements: list from ["ethics", "conflictOfInterest", "dataAvailability", "funding", "authorContributions", "acknowledgements", "consentForPublication", "creditStatement", "generativeAI"]
+- layout.documentClass: exact LaTeX class name if stated (e.g. "IEEEtran.cls", "article.cls", "acmart.cls", "elsarticle.cls", "WileyNJDv5.cls", "sn-jnl.cls")
+- Font sizes (fontSizePt, fontSizeTitlePt, fontSizeFigureCaptionPt, fontSizeTableCaptionPt): plain numbers in points (pt)
+- Margins (layout.marginsCm.*): convert inches or mm to centimetres (cm) as plain numbers (1 inch = 2.54 cm)
+- layout.lineSpacing: plain number (e.g. 1.0, 1.5, 2.0)
 
 USER
 <guidelines>

@@ -416,3 +416,55 @@ async def test_ge_inj_08_javascript_template_url_rejected():
         from app.services.guidelines.schema import SubmissionRules
         SubmissionRules(templateUrl="javascript:alert(1)")
 
+
+@pytest.mark.anyio
+async def test_extended_haziq_fields_orchestration():
+    """End-to-end orchestrate_extraction supports all Haziq fields alongside existing PublishAid fields."""
+    source = (
+        "Use IEEEtran.cls with double line spacing and 1 inch left margin. "
+        "Title must be 16pt, body 10pt, figure caption 8pt, table caption 8.5pt. "
+        "Keywords separated by semicolon. Highlights require 5 bullets of max 85 chars. "
+        "All authors must provide ORCID. Required: consentForPublication, creditStatement, generativeAI."
+    )
+    findings = [
+        Finding(path="layout.documentClass", value="IEEEtran.cls", evidence="Use IEEEtran.cls"),
+        Finding(path="layout.lineSpacing", value="double", evidence="double line spacing"),
+        Finding(path="layout.marginsCm.left", value="1 inch", evidence="1 inch left margin"),
+        Finding(path="layout.fontSizeTitlePt", value=16, evidence="Title must be 16pt"),
+        Finding(path="layout.fontSizePt", value=10, evidence="body 10pt"),
+        Finding(path="layout.fontSizeFigureCaptionPt", value=8, evidence="figure caption 8pt"),
+        Finding(path="layout.fontSizeTableCaptionPt", value=8.5, evidence="table caption 8.5pt"),
+        Finding(path="general.keywordSeparator", value=";", evidence="Keywords separated by semicolon"),
+        Finding(path="submission.highlightCount", value=5, evidence="Highlights require 5 bullets"),
+        Finding(path="submission.highlightLengthChars", value=85, evidence="max 85 chars"),
+        Finding(path="submission.orcidRequired", value="yes", evidence="All authors must provide ORCID"),
+        Finding(
+            path="general.requiredStatements",
+            value=["consentForPublication", "creditStatement", "generativeAI"],
+            evidence="Required: consentForPublication, creditStatement, generativeAI.",
+        ),
+    ]
+    client = FakeLLMClient(canned_findings=findings)
+    chunk = TextChunk(0, 1, "Formatting", source)
+
+    draft, warnings, _ = await orchestrate_extraction([chunk], client, source_text=source)
+    assert not any(w["code"] == "UNKNOWN_PATH_DROPPED" for w in warnings)
+    assert not any(w["code"] == "SCHEMA_VALIDATION_ERROR" for w in warnings)
+    rules = draft["rules"]
+    assert rules["layout"]["documentClass"] == "IEEEtran.cls"
+    assert rules["layout"]["lineSpacing"] == 2.0
+    assert rules["layout"]["marginsCm"]["left"] == 2.54
+    assert rules["layout"]["fontSizeTitlePt"] == 16.0
+    assert rules["layout"]["fontSizePt"] == 10.0
+    assert rules["layout"]["fontSizeFigureCaptionPt"] == 8.0
+    assert rules["layout"]["fontSizeTableCaptionPt"] == 8.5
+    assert rules["general"]["keywordSeparator"] == "semicolon"
+    assert rules["submission"]["highlightCount"] == 5
+    assert rules["submission"]["highlightLengthChars"] == 85
+    assert rules["submission"]["orcidRequired"] is True
+    assert set(rules["general"]["requiredStatements"]) == {
+        "consentForPublication",
+        "creditStatement",
+        "generativeAI",
+    }
+

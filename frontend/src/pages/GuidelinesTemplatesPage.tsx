@@ -28,7 +28,8 @@ import {
   HelpCircle,
   Clock,
   Layers,
-  Link2
+  Link2,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
@@ -42,6 +43,7 @@ import {
   getGuidelineRuleSetVersions,
   activateGuidelineRuleSet,
   copyGuidelineRuleSet,
+  patchGuidelineRuleSet,
   deleteGuidelineRuleSet,
   retryGuidelineExtraction,
   deleteGuidelineExtraction,
@@ -107,6 +109,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
   const [ruleSetName, setRuleSetName] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState<string | null>(null);
+  const [editingRuleSetId, setEditingRuleSetId] = useState<string | null>(null);
 
   // Recent Extractions
   const [recentExtractions, setRecentExtractions] = useState<GuidelineExtractionJob[]>([]);
@@ -217,6 +220,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
           }
           const journalObj = journals.find(j => j.id === job.journalId);
           const defaultName = journalObj ? `${journalObj.title} Guidelines` : (job.sourceUrl ? safeHostname(job.sourceUrl) : 'Extracted Guidelines');
+          setEditingRuleSetId(null);
           setRuleSetName(defaultName);
           setExtractionSubStep('review');
           loadRecentExtractions();
@@ -295,6 +299,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
   };
 
   const resumeExtractionReview = (extraction: GuidelineExtractionJob) => {
+    setEditingRuleSetId(null);
     setCurrentJob(extraction);
     if (extraction.draft?.rules) {
       setReviewRules(JSON.parse(JSON.stringify(extraction.draft.rules)));
@@ -309,13 +314,30 @@ export const GuidelinesTemplatesPage: React.FC = () => {
     setActiveTab('extract');
   };
 
+  const handleEditRuleSet = (ruleSet: GuidelineRuleSet) => {
+    setCurrentJob(null);
+    setEditingRuleSetId(ruleSet.id);
+    setReviewRules(JSON.parse(JSON.stringify(ruleSet.rules || { schemaVersion: 1 })));
+    setReviewFields({});
+    setReviewedAllFlags(false);
+    setRuleSetName(ruleSet.name);
+    setReviewCategory('documentStructure');
+    setExtractionSubStep('review');
+    setActiveTab('extract');
+  };
+
   // ==========================================
   // REVIEW & EDIT HELPERS
   // ==========================================
   const updateRuleField = (category: string, field: string, val: any) => {
     const updated = { ...reviewRules };
-    if (!updated[category]) updated[category] = {};
-    updated[category][field] = val;
+    const catObj = { ...(updated[category] || {}) };
+    if (val === null || val === undefined) {
+      delete catObj[field];
+    } else {
+      catObj[field] = val;
+    }
+    updated[category] = catObj;
     setReviewRules(updated);
 
     const path = `${category}.${field}`;
@@ -329,13 +351,50 @@ export const GuidelinesTemplatesPage: React.FC = () => {
     });
   };
 
+  const updateNestedRuleField = (category: string, subCategory: string, field: string, val: any) => {
+    const updated = { ...reviewRules };
+    const catObj = { ...(updated[category] || {}) };
+    const subObj = { ...(catObj[subCategory] || {}) };
+    if (val === null || val === undefined) {
+      delete subObj[field];
+    } else {
+      subObj[field] = val;
+    }
+    if (Object.keys(subObj).length === 0) {
+      delete catObj[subCategory];
+    } else {
+      catObj[subCategory] = subObj;
+    }
+    updated[category] = catObj;
+    setReviewRules(updated);
+
+    const path = `${category}.${subCategory}.${field}`;
+    setReviewFields({
+      ...reviewFields,
+      [path]: {
+        confidence: 'high',
+        evidence: 'User modified during manual review.',
+        edited: true
+      }
+    });
+  };
+
+  const toggleRequiredStatement = (statement: string) => {
+    const current: string[] = Array.isArray(reviewRules.general?.requiredStatements)
+      ? reviewRules.general.requiredStatements
+      : [];
+    const exists = current.includes(statement);
+    const next = exists ? current.filter((s) => s !== statement) : [...current, statement];
+    updateRuleField('general', 'requiredStatements', next.length > 0 ? next : null);
+  };
+
   // Find low confidence fields
   const lowConfidenceItems = Object.entries(reviewFields).filter(
     ([_, prov]) => prov.confidence === 'low' && !prov.edited
   );
 
   const handleConfirmAndSaveRules = async () => {
-    if (!currentJob || !reviewRules) return;
+    if ((!currentJob && !editingRuleSetId) || !reviewRules) return;
     if (lowConfidenceItems.length > 0 && !reviewedAllFlags) {
       alert('Please check the confirmation box acknowledging you have reviewed flagged low-confidence fields.');
       return;
@@ -347,25 +406,42 @@ export const GuidelinesTemplatesPage: React.FC = () => {
 
     setIsConfirming(true);
     try {
-      const createdRuleSet = await confirmGuidelineExtraction(currentJob.id, {
-        name: ruleSetName.trim(),
-        rules: reviewRules,
-        journalId: selectedJournalId || undefined,
-        projectId: selectedProjectId || undefined,
-        acknowledgedFields: lowConfidenceItems.map(([path]) => path),
-      });
+      if (editingRuleSetId) {
+        const updatedRuleSet = await patchGuidelineRuleSet(editingRuleSetId, {
+          name: ruleSetName.trim(),
+          rules: reviewRules,
+        });
+        setReviewSuccessMsg(`Rule Set "${updatedRuleSet.name}" (v${updatedRuleSet.version}) updated successfully!`);
+        addActivity('Guideline rule set updated', updatedRuleSet.name, 'journal');
+        loadRuleSets();
 
-      setReviewSuccessMsg(`Rule Set "${createdRuleSet.name}" saved successfully!`);
-      addActivity('Guideline rule set created', createdRuleSet.name, 'journal');
-      loadRuleSets();
+        setTimeout(() => {
+          setReviewSuccessMsg(null);
+          setEditingRuleSetId(null);
+          setExtractionSubStep('input');
+          setActiveTab('rulesets');
+        }, 1200);
+      } else if (currentJob) {
+        const createdRuleSet = await confirmGuidelineExtraction(currentJob.id, {
+          name: ruleSetName.trim(),
+          rules: reviewRules,
+          journalId: selectedJournalId || undefined,
+          projectId: selectedProjectId || undefined,
+          acknowledgedFields: lowConfidenceItems.map(([path]) => path),
+        });
 
-      setTimeout(() => {
-        setReviewSuccessMsg(null);
-        setExtractionSubStep('input');
-        setActiveTab('rulesets');
-      }, 1500);
+        setReviewSuccessMsg(`Rule Set "${createdRuleSet.name}" saved successfully!`);
+        addActivity('Guideline rule set created', createdRuleSet.name, 'journal');
+        loadRuleSets();
+
+        setTimeout(() => {
+          setReviewSuccessMsg(null);
+          setExtractionSubStep('input');
+          setActiveTab('rulesets');
+        }, 1500);
+      }
     } catch (err: any) {
-      alert(`Failed to confirm rule set: ${err.message}`);
+      alert(`Failed to save rule set: ${err.message}`);
     } finally {
       setIsConfirming(false);
     }
@@ -929,15 +1005,27 @@ Funding, Conflict of Interest, and Data Availability.
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">Review & Confirm Extracted Rules</h2>
+                    <h2 className="text-xl font-bold text-slate-900">
+                      {editingRuleSetId ? 'Edit Custom Rule Set' : 'Review & Confirm Extracted Rules'}
+                    </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Verify extracted constraints against publisher grounding quotes. Correct any flagged fields before saving.
+                      {editingRuleSetId
+                        ? 'Modify formatting, citation, and submission requirements. Saving creates a new active version.'
+                        : 'Verify extracted constraints against publisher grounding quotes. Correct any flagged fields before saving.'}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="secondary"
-                      onClick={() => setExtractionSubStep('input')}
+                      onClick={() => {
+                        if (editingRuleSetId) {
+                          setEditingRuleSetId(null);
+                          setExtractionSubStep('input');
+                          setActiveTab('rulesets');
+                        } else {
+                          setExtractionSubStep('input');
+                        }
+                      }}
                       leftIcon={<ArrowLeft className="w-4 h-4" />}
                     >
                       Back
@@ -947,7 +1035,11 @@ Funding, Conflict of Interest, and Data Availability.
                       disabled={isConfirming}
                       leftIcon={isConfirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     >
-                      {isConfirming ? 'Saving Rules...' : 'Save as Rule Set'}
+                      {isConfirming
+                        ? 'Saving Rules...'
+                        : editingRuleSetId
+                        ? 'Save Changes (New Version)'
+                        : 'Save as Rule Set'}
                     </Button>
                   </div>
                 </div>
@@ -1044,102 +1136,264 @@ Funding, Conflict of Interest, and Data Availability.
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-6">
                 {/* 1. DOCUMENT STRUCTURE (general & layout) */}
                 {reviewCategory === 'documentStructure' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-                    {/* Word Count Max */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Word Count Max</label>
-                        {renderConfidenceBadge('general.maxWords')}
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                      {/* Word Count Max */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Word Count Max</label>
+                          {renderConfidenceBadge('general.maxWords')}
+                        </div>
+                        <input
+                          type="number"
+                          value={reviewRules.general?.maxWords ?? ''}
+                          onChange={(e) => updateRuleField('general', 'maxWords', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 8000"
+                        />
                       </div>
-                      <input
-                        type="number"
-                        value={reviewRules.general?.maxWords ?? ''}
-                        onChange={(e) => updateRuleField('general', 'maxWords', e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        placeholder="e.g. 8000"
-                      />
+
+                      {/* Abstract Limit */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Abstract Limit (words)</label>
+                          {renderConfidenceBadge('general.maxAbstractWords')}
+                        </div>
+                        <input
+                          type="number"
+                          value={reviewRules.general?.maxAbstractWords ?? ''}
+                          onChange={(e) => updateRuleField('general', 'maxAbstractWords', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 250"
+                        />
+                      </div>
+
+                      {/* Max Pages */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Max Page Count</label>
+                          {renderConfidenceBadge('layout.maxPages')}
+                        </div>
+                        <input
+                          type="number"
+                          value={reviewRules.layout?.maxPages ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'maxPages', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 12"
+                        />
+                      </div>
+
+                      {/* Max Title Characters */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Max Title Length (chars)</label>
+                          {renderConfidenceBadge('general.maxTitleChars')}
+                        </div>
+                        <input
+                          type="number"
+                          value={reviewRules.general?.maxTitleChars ?? ''}
+                          onChange={(e) => updateRuleField('general', 'maxTitleChars', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 150"
+                        />
+                      </div>
+
+                      {/* Max Keywords */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Max Keywords Count</label>
+                          {renderConfidenceBadge('general.keywords.max')}
+                        </div>
+                        <input
+                          type="number"
+                          value={reviewRules.general?.keywords?.max ?? ''}
+                          onChange={(e) => updateNestedRuleField('general', 'keywords', 'max', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 6"
+                        />
+                      </div>
+
+                      {/* Keyword Separator */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Keyword Separator</label>
+                          {renderConfidenceBadge('general.keywordSeparator')}
+                        </div>
+                        <select
+                          value={reviewRules.general?.keywordSeparator ?? ''}
+                          onChange={(e) => updateRuleField('general', 'keywordSeparator', e.target.value || null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                        >
+                          <option value="">Unspecified</option>
+                          <option value="comma">Comma (,)</option>
+                          <option value="semicolon">Semicolon (;)</option>
+                          <option value="bullet">Bullet (•)</option>
+                        </select>
+                      </div>
+
+                      {/* Column Layout */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Column Layout</label>
+                          {renderConfidenceBadge('layout.columns')}
+                        </div>
+                        <select
+                          value={reviewRules.layout?.columns ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'columns', e.target.value || null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                        >
+                          <option value="">Unspecified</option>
+                          <option value="single">Single Column</option>
+                          <option value="double">Double Column</option>
+                          <option value="either">Either (Single or Double)</option>
+                        </select>
+                      </div>
+
+                      {/* Line Spacing */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Line Spacing</label>
+                          {renderConfidenceBadge('layout.lineSpacing')}
+                        </div>
+                        <select
+                          value={reviewRules.layout?.lineSpacing ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'lineSpacing', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                        >
+                          <option value="">Unspecified</option>
+                          <option value={1}>Single (1.0)</option>
+                          <option value={1.5}>1.5 Lines</option>
+                          <option value={2}>Double (2.0)</option>
+                        </select>
+                      </div>
+
+                      {/* LaTeX Document Class */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">LaTeX Document Class</label>
+                          {renderConfidenceBadge('layout.documentClass')}
+                        </div>
+                        <input
+                          type="text"
+                          list="document-class-options"
+                          value={reviewRules.layout?.documentClass ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'documentClass', e.target.value || null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. IEEEtran.cls, sn-jnl.cls"
+                        />
+                        <datalist id="document-class-options">
+                          <option value="IEEEtran.cls" />
+                          <option value="article.cls" />
+                          <option value="acmart.cls" />
+                          <option value="elsarticle.cls" />
+                          <option value="WileyNJDv5.cls" />
+                          <option value="sn-jnl.cls" />
+                        </datalist>
+                      </div>
+
+                      {/* Font Family */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Font Family</label>
+                          {renderConfidenceBadge('layout.fontFamily')}
+                        </div>
+                        <input
+                          type="text"
+                          value={reviewRules.layout?.fontFamily ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'fontFamily', e.target.value || null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. Times New Roman"
+                        />
+                      </div>
+
+                      {/* Font Size (Body) */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Body Font Size (pt)</label>
+                          {renderConfidenceBadge('layout.fontSizePt')}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={reviewRules.layout?.fontSizePt ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'fontSizePt', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 10"
+                        />
+                      </div>
+
+                      {/* Font Size (Title) */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Title Font Size (pt)</label>
+                          {renderConfidenceBadge('layout.fontSizeTitlePt')}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={reviewRules.layout?.fontSizeTitlePt ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'fontSizeTitlePt', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 18"
+                        />
+                      </div>
+
+                      {/* Font Size (Figure Caption) */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Figure Caption Size (pt)</label>
+                          {renderConfidenceBadge('layout.fontSizeFigureCaptionPt')}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={reviewRules.layout?.fontSizeFigureCaptionPt ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'fontSizeFigureCaptionPt', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 9"
+                        />
+                      </div>
+
+                      {/* Font Size (Table Caption) */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Table Caption Size (pt)</label>
+                          {renderConfidenceBadge('layout.fontSizeTableCaptionPt')}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={reviewRules.layout?.fontSizeTableCaptionPt ?? ''}
+                          onChange={(e) => updateRuleField('layout', 'fontSizeTableCaptionPt', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 9"
+                        />
+                      </div>
                     </div>
 
-                    {/* Abstract Limit */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Abstract Limit (words)</label>
-                        {renderConfidenceBadge('general.maxAbstractWords')}
+                    {/* Margins (cm) */}
+                    <div className="pt-4 border-t border-slate-100">
+                      <h4 className="text-xs font-bold text-slate-700 mb-3">Page Margins (cm)</h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {(['top', 'bottom', 'left', 'right'] as const).map((side) => (
+                          <div key={side} className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-slate-600 capitalize">{side} Margin (cm)</label>
+                              {renderConfidenceBadge(`layout.marginsCm.${side}`)}
+                            </div>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.5"
+                              max="6"
+                              value={reviewRules.layout?.marginsCm?.[side] ?? ''}
+                              onChange={(e) => updateNestedRuleField('layout', 'marginsCm', side, e.target.value ? Number(e.target.value) : null)}
+                              className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                              placeholder="e.g. 2.54"
+                            />
+                          </div>
+                        ))}
                       </div>
-                      <input
-                        type="number"
-                        value={reviewRules.general?.maxAbstractWords ?? ''}
-                        onChange={(e) => updateRuleField('general', 'maxAbstractWords', e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        placeholder="e.g. 250"
-                      />
-                    </div>
-
-                    {/* Column Layout */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Column Layout</label>
-                        {renderConfidenceBadge('layout.columns')}
-                      </div>
-                      <select
-                        value={reviewRules.layout?.columns ?? ''}
-                        onChange={(e) => updateRuleField('layout', 'columns', e.target.value || null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="">Unspecified</option>
-                        <option value="single">Single Column</option>
-                        <option value="double">Double Column</option>
-                        <option value="either">Either (Single or Double)</option>
-                      </select>
-                    </div>
-
-                    {/* Line Spacing */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Line Spacing</label>
-                        {renderConfidenceBadge('layout.lineSpacing')}
-                      </div>
-                      <select
-                        value={reviewRules.layout?.lineSpacing ?? ''}
-                        onChange={(e) => updateRuleField('layout', 'lineSpacing', e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="">Unspecified</option>
-                        <option value={1}>Single (1.0)</option>
-                        <option value={1.5}>1.5 Lines</option>
-                        <option value={2}>Double (2.0)</option>
-                      </select>
-                    </div>
-
-                    {/* Font Family */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Font Family</label>
-                        {renderConfidenceBadge('layout.fontFamily')}
-                      </div>
-                      <input
-                        type="text"
-                        value={reviewRules.layout?.fontFamily ?? ''}
-                        onChange={(e) => updateRuleField('layout', 'fontFamily', e.target.value || null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        placeholder="e.g. Times New Roman"
-                      />
-                    </div>
-
-                    {/* Font Size (Body) */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Body Font Size (pt)</label>
-                        {renderConfidenceBadge('layout.fontSizePt')}
-                      </div>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={reviewRules.layout?.fontSizePt ?? ''}
-                        onChange={(e) => updateRuleField('layout', 'fontSizePt', e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        placeholder="e.g. 10"
-                      />
                     </div>
                   </div>
                 )}
@@ -1171,6 +1425,16 @@ Funding, Conflict of Interest, and Data Availability.
                         <option value="MLA">MLA</option>
                         <option value="ACS">ACS</option>
                         <option value="AMA">AMA</option>
+                        <option value="APS">APS</option>
+                        <option value="AMS">AMS</option>
+                        <option value="MPS">MPS</option>
+                        <option value="WCMS">WCMS</option>
+                        <option value="Basic">Basic</option>
+                        <option value="AuthorYear">AuthorYear</option>
+                        <option value="VancouverNumbered">VancouverNumbered</option>
+                        <option value="VancouverAuthorYear">VancouverAuthorYear</option>
+                        <option value="MathPhysNumbered">MathPhysNumbered</option>
+                        <option value="MathPhysAuthorYear">MathPhysAuthorYear</option>
                         <option value="Other">Other</option>
                       </select>
                     </div>
@@ -1261,57 +1525,144 @@ Funding, Conflict of Interest, and Data Availability.
 
                 {/* 4. SUBMISSION & STYLE */}
                 {reviewCategory === 'submissionStyle' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-                    {/* Review Type */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Peer Review Anonymity</label>
-                        {renderConfidenceBadge('submission.reviewType')}
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                      {/* Review Type */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Peer Review Anonymity</label>
+                          {renderConfidenceBadge('submission.reviewType')}
+                        </div>
+                        <select
+                          value={reviewRules.submission?.reviewType ?? ''}
+                          onChange={(e) => updateRuleField('submission', 'reviewType', e.target.value || null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                        >
+                          <option value="">Unspecified</option>
+                          <option value="single_blind">Single Blind (Authors known to reviewers)</option>
+                          <option value="double_blind">Double Blind (Fully anonymized)</option>
+                          <option value="open">Open Peer Review</option>
+                        </select>
                       </div>
-                      <select
-                        value={reviewRules.submission?.reviewType ?? ''}
-                        onChange={(e) => updateRuleField('submission', 'reviewType', e.target.value || null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="">Unspecified</option>
-                        <option value="single_blind">Single Blind (Authors known to reviewers)</option>
-                        <option value="double_blind">Double Blind (Fully anonymized)</option>
-                        <option value="open">Open Peer Review</option>
-                      </select>
+
+                      {/* Cover Letter Required */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Cover Letter Mandatory</label>
+                          {renderConfidenceBadge('submission.coverLetterRequired')}
+                        </div>
+                        <select
+                          value={reviewRules.submission?.coverLetterRequired === true ? 'true' : reviewRules.submission?.coverLetterRequired === false ? 'false' : ''}
+                          onChange={(e) => updateRuleField('submission', 'coverLetterRequired', e.target.value === '' ? null : e.target.value === 'true')}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                        >
+                          <option value="">Unspecified</option>
+                          <option value="true">Yes, Mandatory</option>
+                          <option value="false">No, Optional</option>
+                        </select>
+                      </div>
+
+                      {/* ORCID Required */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">ORCID iD Mandatory</label>
+                          {renderConfidenceBadge('submission.orcidRequired')}
+                        </div>
+                        <select
+                          value={reviewRules.submission?.orcidRequired === true ? 'true' : reviewRules.submission?.orcidRequired === false ? 'false' : ''}
+                          onChange={(e) => updateRuleField('submission', 'orcidRequired', e.target.value === '' ? null : e.target.value === 'true')}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                        >
+                          <option value="">Unspecified</option>
+                          <option value="true">Yes, Mandatory</option>
+                          <option value="false">No, Optional</option>
+                        </select>
+                      </div>
+
+                      {/* Highlights Required */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Highlights Mandatory</label>
+                          {renderConfidenceBadge('submission.highlightsRequired')}
+                        </div>
+                        <select
+                          value={reviewRules.submission?.highlightsRequired === true ? 'true' : reviewRules.submission?.highlightsRequired === false ? 'false' : ''}
+                          onChange={(e) => updateRuleField('submission', 'highlightsRequired', e.target.value === '' ? null : e.target.value === 'true')}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                        >
+                          <option value="">Unspecified</option>
+                          <option value="true">Yes, Mandatory</option>
+                          <option value="false">No, Optional</option>
+                        </select>
+                      </div>
+
+                      {/* Highlight Count */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Highlight Bullet Count</label>
+                          {renderConfidenceBadge('submission.highlightCount')}
+                        </div>
+                        <input
+                          type="number"
+                          value={reviewRules.submission?.highlightCount ?? ''}
+                          onChange={(e) => updateRuleField('submission', 'highlightCount', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 5"
+                        />
+                      </div>
+
+                      {/* Highlight Max Length */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">Highlight Max Length (chars)</label>
+                          {renderConfidenceBadge('submission.highlightLengthChars')}
+                        </div>
+                        <input
+                          type="number"
+                          value={reviewRules.submission?.highlightLengthChars ?? ''}
+                          onChange={(e) => updateRuleField('submission', 'highlightLengthChars', e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
+                          placeholder="e.g. 85"
+                        />
+                      </div>
                     </div>
 
-                    {/* Cover Letter Required */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Cover Letter Mandatory</label>
-                        {renderConfidenceBadge('submission.coverLetterRequired')}
+                    {/* Required Declarations / Statements */}
+                    <div className="pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-slate-700">Required Declarations & Policy Statements</h4>
+                        {renderConfidenceBadge('general.requiredStatements')}
                       </div>
-                      <select
-                        value={reviewRules.submission?.coverLetterRequired === true ? 'true' : reviewRules.submission?.coverLetterRequired === false ? 'false' : ''}
-                        onChange={(e) => updateRuleField('submission', 'coverLetterRequired', e.target.value === '' ? null : e.target.value === 'true')}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="">Unspecified</option>
-                        <option value="true">Yes, Mandatory</option>
-                        <option value="false">No, Optional</option>
-                      </select>
-                    </div>
-
-                    {/* Highlights Required */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">Highlights Mandatory</label>
-                        {renderConfidenceBadge('submission.highlightsRequired')}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                        {[
+                          { key: 'dataAvailability', label: 'Data Availability Statement' },
+                          { key: 'funding', label: 'Funding Statement' },
+                          { key: 'conflictOfInterest', label: 'Conflict of Interest' },
+                          { key: 'ethics', label: 'Ethics Approval' },
+                          { key: 'consentForPublication', label: 'Consent for Publication' },
+                          { key: 'authorContributions', label: 'Author Contributions' },
+                          { key: 'creditStatement', label: 'CRediT Statement' },
+                          { key: 'generativeAI', label: 'Generative AI Disclosure' },
+                          { key: 'acknowledgements', label: 'Acknowledgements' },
+                        ].map((item) => {
+                          const checked = Array.isArray(reviewRules.general?.requiredStatements)
+                            && reviewRules.general.requiredStatements.includes(item.key);
+                          return (
+                            <label
+                              key={item.key}
+                              className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer text-xs text-slate-700"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleRequiredStatement(item.key)}
+                                className="rounded border-slate-300 text-[#0F766E] focus:ring-[#0F766E]"
+                              />
+                              <span>{item.label}</span>
+                            </label>
+                          );
+                        })}
                       </div>
-                      <select
-                        value={reviewRules.submission?.highlightsRequired === true ? 'true' : reviewRules.submission?.highlightsRequired === false ? 'false' : ''}
-                        onChange={(e) => updateRuleField('submission', 'highlightsRequired', e.target.value === '' ? null : e.target.value === 'true')}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="">Unspecified</option>
-                        <option value="true">Yes, Mandatory</option>
-                        <option value="false">No, Optional</option>
-                      </select>
                     </div>
                   </div>
                 )}
@@ -1417,6 +1768,15 @@ Funding, Conflict of Interest, and Data Availability.
                       </div>
 
                       <div className="flex items-center gap-1">
+                        {!isSeed && (
+                          <button
+                            title="Edit Rule Set"
+                            onClick={() => handleEditRuleSet(rs)}
+                            className="p-1.5 text-slate-400 hover:text-[#0F766E] hover:bg-teal-50 rounded-lg"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           title="Duplicate Rule Set"
                           onClick={() => handleDuplicateRuleSet(rs)}
@@ -1473,12 +1833,22 @@ Funding, Conflict of Interest, and Data Availability.
 
                   {/* Actions Bar */}
                   <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => handleSelectRuleSetForDetails(rs)}
-                      className="text-xs font-bold text-slate-600 hover:text-slate-900"
-                    >
-                      Inspect Rules
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleSelectRuleSetForDetails(rs)}
+                        className="text-xs font-bold text-slate-600 hover:text-slate-900"
+                      >
+                        Inspect Rules
+                      </button>
+                      {!isSeed && (
+                        <button
+                          onClick={() => handleEditRuleSet(rs)}
+                          className="text-xs font-bold text-[#0F766E] hover:underline flex items-center gap-1"
+                        >
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                      )}
+                    </div>
 
                     <Button
                       size="sm"

@@ -225,7 +225,24 @@ RequiredStatementsEnum = Literal[
     "funding",
     "authorContributions",
     "acknowledgements",
+    "consentForPublication",
+    "creditStatement",
+    "generativeAI",
 ]
+
+KeywordSeparatorEnum = Literal["comma", "semicolon", "bullet"]
+
+KEYWORD_SEPARATOR_ALIASES: dict[str, str] = {
+    ",": "comma",
+    "comma": "comma",
+    "commas": "comma",
+    ";": "semicolon",
+    "semicolon": "semicolon",
+    "semi-colon": "semicolon",
+    "semicolons": "semicolon",
+    "•": "bullet",
+    "bullet": "bullet",
+}
 
 
 class GeneralRules(StrictBase):
@@ -235,9 +252,21 @@ class GeneralRules(StrictBase):
     maxAbstractWords: int | None = Field(default=None, ge=20, le=1000)
     abstractStructure: Literal["structured", "unstructured"] | None = None
     keywords: KeywordsSpec | None = None
+    keywordSeparator: KeywordSeparatorEnum | None = None
     maxTitleChars: int | None = Field(default=None, ge=10, le=500)
     requiredSections: list[str] | None = Field(default=None, max_length=30)
     requiredStatements: list[RequiredStatementsEnum] | None = None
+
+    @field_validator("keywordSeparator", mode="before")
+    @classmethod
+    def _normalize_keyword_separator(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        s = clean_string(str(v))
+        if not s:
+            return None
+        s_lower = s.lower()
+        return KEYWORD_SEPARATOR_ALIASES.get(s_lower, s_lower)
 
     @field_validator("maxWords", "minWords", "maxAbstractWords", "maxTitleChars", mode="before")
     @classmethod
@@ -311,6 +340,16 @@ CitationStyleEnum = Literal[
     "Elsevier",
     "ACS",
     "AMA",
+    "APS",
+    "AMS",
+    "MPS",
+    "WCMS",
+    "Basic",
+    "MathPhysNumbered",
+    "MathPhysAuthorYear",
+    "VancouverNumbered",
+    "VancouverAuthorYear",
+    "AuthorYear",
     "Other",
 ]
 
@@ -340,7 +379,11 @@ class CitationRules(StrictBase):
                     found = False
                     for item in [
                         "IEEE", "APA", "Vancouver", "Harvard", "MLA", "Chicago",
-                        "ACM", "Springer", "Nature", "Elsevier", "ACS", "AMA", "Other",
+                        "ACM", "Springer", "Nature", "Elsevier", "ACS", "AMA",
+                        "APS", "AMS", "MPS", "WCMS", "Basic",
+                        "MathPhysNumbered", "MathPhysAuthorYear",
+                        "VancouverNumbered", "VancouverAuthorYear",
+                        "AuthorYear", "Other",
                     ]:
                         if item.lower() == s_lower:
                             data["style"] = item
@@ -390,11 +433,27 @@ LayoutColumnsEnum = Literal["single", "double", "either"]
 PageSizeEnum = Literal["A4", "Letter", "either"]
 
 
+LINE_SPACING_ALIASES: dict[str, float] = {
+    "single": 1.0,
+    "single-spaced": 1.0,
+    "single spaced": 1.0,
+    "1.5 lines": 1.5,
+    "one and a half": 1.5,
+    "double": 2.0,
+    "double-spaced": 2.0,
+    "double spaced": 2.0,
+}
+
+
 class LayoutRules(StrictBase):
     columns: LayoutColumnsEnum | None = None
     pageSize: PageSizeEnum | None = None
     fontFamily: str | None = Field(default=None, max_length=80)
     fontSizePt: float | None = Field(default=None, ge=6.0, le=24.0)
+    fontSizeTitlePt: float | None = Field(default=None, ge=6.0, le=72.0)
+    fontSizeFigureCaptionPt: float | None = Field(default=None, ge=6.0, le=24.0)
+    fontSizeTableCaptionPt: float | None = Field(default=None, ge=6.0, le=24.0)
+    documentClass: str | None = Field(default=None, max_length=80)
     lineSpacing: float | None = Field(default=None, ge=1.0, le=3.0)
     marginsCm: MarginsCm | None = None
     maxPages: int | None = Field(default=None, ge=1, le=200)
@@ -415,12 +474,21 @@ class LayoutRules(StrictBase):
     def _coerce_pages(cls, v: Any) -> int | None:
         return normalize_integer_value(v)
 
-    @field_validator("fontSizePt", "lineSpacing", mode="before")
+    @field_validator("lineSpacing", mode="before")
+    @classmethod
+    def _coerce_line_spacing(cls, v: Any) -> float | None:
+        if isinstance(v, str):
+            s_lower = (clean_string(v) or "").lower()
+            if s_lower in LINE_SPACING_ALIASES:
+                return LINE_SPACING_ALIASES[s_lower]
+        return normalize_float_value(v)
+
+    @field_validator("fontSizePt", "fontSizeTitlePt", "fontSizeFigureCaptionPt", "fontSizeTableCaptionPt", mode="before")
     @classmethod
     def _coerce_floats(cls, v: Any) -> float | None:
         return normalize_float_value(v)
 
-    @field_validator("fontFamily", mode="before")
+    @field_validator("fontFamily", "documentClass", mode="before")
     @classmethod
     def _clean_font(cls, v: Any) -> str | None:
         return clean_string(v)
@@ -469,6 +537,14 @@ class SubmissionRules(StrictBase):
     templateUrl: str | None = Field(default=None, max_length=500)
     coverLetterRequired: bool | None = None
     highlightsRequired: bool | None = None
+    orcidRequired: bool | None = None
+    highlightCount: int | None = Field(default=None, ge=1, le=20)
+    highlightLengthChars: int | None = Field(default=None, ge=10, le=500)
+
+    @field_validator("highlightCount", "highlightLengthChars", mode="before")
+    @classmethod
+    def _coerce_highlight_ints(cls, v: Any) -> int | None:
+        return normalize_integer_value(v)
 
     @field_validator("templateUrl", mode="before")
     @classmethod
@@ -608,11 +684,21 @@ def get_schema_metadata() -> dict[str, Any]:
             ],
             "requiredStatements": [
                 "ethics", "conflictOfInterest", "dataAvailability",
-                "funding", "authorContributions", "acknowledgements"
+                "funding", "authorContributions", "acknowledgements",
+                "consentForPublication", "creditStatement", "generativeAI",
             ],
+            "keywordSeparators": ["comma", "semicolon", "bullet"],
             "citationStyles": [
                 "IEEE", "APA", "Vancouver", "Harvard", "MLA", "Chicago",
-                "ACM", "Springer", "Nature", "Elsevier", "ACS", "AMA", "Other"
+                "ACM", "Springer", "Nature", "Elsevier", "ACS", "AMA",
+                "APS", "AMS", "MPS", "WCMS", "Basic",
+                "MathPhysNumbered", "MathPhysAuthorYear",
+                "VancouverNumbered", "VancouverAuthorYear",
+                "AuthorYear", "Other",
+            ],
+            "documentClasses": [
+                "IEEEtran.cls", "article.cls", "acmart.cls",
+                "elsarticle.cls", "WileyNJDv5.cls", "sn-jnl.cls",
             ],
             "layoutColumns": ["single", "double", "either"],
             "pageSizes": ["A4", "Letter", "either"],
@@ -630,11 +716,16 @@ def get_schema_metadata() -> dict[str, Any]:
             "general.maxTitleChars": {"min": 10, "max": 500},
             "citation.maxReferences": {"min": 1, "max": 1000},
             "layout.fontSizePt": {"min": 6.0, "max": 24.0},
+            "layout.fontSizeTitlePt": {"min": 6.0, "max": 72.0},
+            "layout.fontSizeFigureCaptionPt": {"min": 6.0, "max": 24.0},
+            "layout.fontSizeTableCaptionPt": {"min": 6.0, "max": 24.0},
             "layout.lineSpacing": {"min": 1.0, "max": 3.0},
             "layout.marginsCm": {"min": 0.5, "max": 6.0},
             "layout.maxPages": {"min": 1, "max": 200},
             "figures.maxFigures": {"min": 0, "max": 200},
             "figures.maxTables": {"min": 0, "max": 200},
             "figures.minDpi": {"min": 72, "max": 1200},
+            "submission.highlightCount": {"min": 1, "max": 20},
+            "submission.highlightLengthChars": {"min": 10, "max": 500},
         },
     }

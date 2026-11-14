@@ -609,3 +609,90 @@ def test_ge_grd_17_llm_claim_overridden():
     res = compute_grounding(5000, "Limit is 5000 words", source, "general.maxWords")
     # Even if caller or LLM thought it was high, grounding assigns low
     assert res.confidence == "low"
+
+
+# ===========================================================================
+# Extended Haziq Guideline Fields Validation
+# ===========================================================================
+
+def test_extended_layout_typography_and_document_class():
+    """Font sizes for title/captions, documentClass, and lineSpacing string aliases validate."""
+    layout = LayoutRules(
+        fontSizePt=10,
+        fontSizeTitlePt=18,
+        fontSizeFigureCaptionPt=9,
+        fontSizeTableCaptionPt=8.5,
+        documentClass="  IEEEtran.cls ",
+        lineSpacing="double",
+    )
+    assert layout.fontSizePt == 10.0
+    assert layout.fontSizeTitlePt == 18.0
+    assert layout.fontSizeFigureCaptionPt == 9.0
+    assert layout.fontSizeTableCaptionPt == 8.5
+    assert layout.documentClass == "IEEEtran.cls"
+    assert layout.lineSpacing == 2.0
+
+    with pytest.raises(ValidationError):
+        LayoutRules(fontSizeTitlePt=73.0)
+    with pytest.raises(ValidationError):
+        LayoutRules(fontSizeFigureCaptionPt=5.0)
+    with pytest.raises(ValidationError):
+        LayoutRules(fontSizeTableCaptionPt=25.0)
+
+
+def test_extended_submission_orcid_and_highlights():
+    """SubmissionRules supports orcidRequired, highlightCount, and highlightLengthChars."""
+    sub = SubmissionRules(
+        highlightsRequired=True,
+        orcidRequired=True,
+        highlightCount="5",
+        highlightLengthChars=85,
+    )
+    assert sub.orcidRequired is True
+    assert sub.highlightCount == 5
+    assert sub.highlightLengthChars == 85
+
+    with pytest.raises(ValidationError):
+        SubmissionRules(highlightCount=0)
+    with pytest.raises(ValidationError):
+        SubmissionRules(highlightCount=21)
+    with pytest.raises(ValidationError):
+        SubmissionRules(highlightLengthChars=9)
+    with pytest.raises(ValidationError):
+        SubmissionRules(highlightLengthChars=501)
+
+
+def test_extended_general_keyword_separator_and_statements():
+    """GeneralRules supports keywordSeparator normalization and expanded requiredStatements."""
+    gen = GeneralRules(
+        keywordSeparator=";",
+        requiredStatements=[
+            "dataAvailability",
+            "funding",
+            "conflictOfInterest",
+            "ethics",
+            "consentForPublication",
+            "authorContributions",
+            "creditStatement",
+            "generativeAI",
+        ],
+    )
+    assert gen.keywordSeparator == "semicolon"
+    assert "consentForPublication" in gen.requiredStatements
+    assert "creditStatement" in gen.requiredStatements
+    assert "generativeAI" in gen.requiredStatements
+    assert GeneralRules(keywordSeparator=",").keywordSeparator == "comma"
+
+    with pytest.raises(ValidationError):
+        GeneralRules(keywordSeparator="pipe")
+
+
+def test_extended_citation_styles_from_haziq():
+    """Additional referencing styles from Haziq guidelines validate without falling back to Other."""
+    for style_name in [
+        "APS", "AMS", "MPS", "WCMS", "Basic",
+        "MathPhysNumbered", "MathPhysAuthorYear",
+        "VancouverNumbered", "VancouverAuthorYear", "AuthorYear",
+    ]:
+        c = CitationRules.model_validate({"style": style_name})
+        assert c.style == style_name

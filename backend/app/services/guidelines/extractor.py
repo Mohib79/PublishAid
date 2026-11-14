@@ -21,6 +21,9 @@ from app.services.guidelines.llm.base import (
 )
 from app.services.guidelines.schema import (
     GuidelineRuleSchema,
+    KEYWORD_SEPARATOR_ALIASES,
+    LINE_SPACING_ALIASES,
+    MarginsCm,
     canonicalize_section_name,
     clean_string,
     normalize_integer_value,
@@ -53,11 +56,16 @@ NUMERIC_RANGES = {
     "general.maxTitleChars": (10, 500),
     "citation.maxReferences": (1, 1000),
     "layout.fontSizePt": (6.0, 24.0),
+    "layout.fontSizeTitlePt": (6.0, 72.0),
+    "layout.fontSizeFigureCaptionPt": (6.0, 24.0),
+    "layout.fontSizeTableCaptionPt": (6.0, 24.0),
     "layout.lineSpacing": (1.0, 3.0),
     "layout.maxPages": (1, 200),
     "figures.maxFigures": (0, 200),
     "figures.maxTables": (0, 200),
     "figures.minDpi": (72, 1200),
+    "submission.highlightCount": (1, 20),
+    "submission.highlightLengthChars": (10, 500),
     # scoped article type ranges
     "maxWords": (100, 100000),
     "maxAbstractWords": (20, 1000),
@@ -81,6 +89,33 @@ def validate_and_normalize_finding_value(path: str, raw_value: Any) -> Any:
         if raw_value and len(raw_value) > 500:
             raw_value = raw_value[:500]
 
+    # Normalize line spacing aliases ("single" -> 1.0, "double" -> 2.0) before numeric range check
+    if path == "layout.lineSpacing" and isinstance(raw_value, str):
+        mapped = LINE_SPACING_ALIASES.get(raw_value.lower())
+        if mapped is not None:
+            raw_value = mapped
+
+    # Margin normalization (converts inches / mm / cm strings to cm)
+    if path in (
+        "layout.marginsCm.top",
+        "layout.marginsCm.bottom",
+        "layout.marginsCm.left",
+        "layout.marginsCm.right",
+    ):
+        num = MarginsCm._coerce_margin(raw_value)
+        if num is None:
+            return None
+        if num < 0.5 or num > 6.0:
+            raise ValueError(f"Value {num} for {path} is out of permitted range [0.5, 6.0]")
+        return num
+
+    # Keyword separator normalization
+    if path == "general.keywordSeparator" and isinstance(raw_value, str):
+        mapped_sep = KEYWORD_SEPARATOR_ALIASES.get(raw_value.lower())
+        if mapped_sep is not None:
+            return mapped_sep
+        raise ValueError(f"Invalid keywordSeparator '{raw_value}'")
+
     # Numeric fields check
     if path in NUMERIC_RANGES:
         min_v, max_v = NUMERIC_RANGES[path]
@@ -94,7 +129,12 @@ def validate_and_normalize_finding_value(path: str, raw_value: Any) -> Any:
         return num
 
     # Boolean fields
-    if path in ("citation.numbered", "submission.coverLetterRequired", "submission.highlightsRequired"):
+    if path in (
+        "citation.numbered",
+        "submission.coverLetterRequired",
+        "submission.highlightsRequired",
+        "submission.orcidRequired",
+    ):
         if isinstance(raw_value, bool):
             return raw_value
         if isinstance(raw_value, str):
