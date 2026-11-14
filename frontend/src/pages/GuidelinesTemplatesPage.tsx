@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 import {
   createGuidelineExtraction,
   getGuidelineExtraction,
@@ -805,39 +806,36 @@ Funding, Conflict of Interest, and Data Availability.
                 {/* Target Metadata Selectors */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Associated Journal (Optional)
-                    </label>
-                    <select
+                    <CustomDropdown
+                      label="Associated Journal (Optional)"
                       value={selectedJournalId}
-                      onChange={(e) => setSelectedJournalId(e.target.value)}
-                      className="w-full px-3 h-[40px] rounded-xl border border-slate-200 text-xs bg-white focus:border-[#0F766E] outline-none"
-                    >
-                      <option value="">-- None (Standalone Rule Set) --</option>
-                      {(catalogJournals.length > 0 ? catalogJournals : journals).map((j) => (
-                        <option key={j.id} value={j.id}>
-                          {j.title} {j.publisher ? `(${j.publisher})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setSelectedJournalId(val)}
+                      placeholder="-- None (Standalone Rule Set) --"
+                      options={[
+                        { value: '', label: '-- None (Standalone Rule Set) --' },
+                        ...(catalogJournals.length > 0 ? catalogJournals : journals).map((j) => ({
+                          value: j.id,
+                          label: `${j.title} ${j.publisher ? `(${j.publisher})` : ''}`,
+                        })),
+                      ]}
+                      searchable={(catalogJournals.length > 0 ? catalogJournals : journals).length > 5}
+                      size="md"
+                    />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Link Directly to Project (Optional)
-                    </label>
-                    <select
+                    <CustomDropdown
+                      label="Link Directly to Project (Optional)"
                       value={selectedProjectId}
-                      onChange={(e) => setSelectedProjectId(e.target.value)}
-                      className="w-full px-3 h-[40px] rounded-xl border border-slate-200 text-xs bg-white focus:border-[#0F766E] outline-none"
-                    >
-                      <option value="">-- Do Not Link Immediately --</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.title}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setSelectedProjectId(val)}
+                      placeholder="-- Do Not Link Immediately --"
+                      options={[
+                        { value: '', label: '-- Do Not Link Immediately --' },
+                        ...projects.map((p) => ({ value: p.id, label: p.title })),
+                      ]}
+                      searchable={projects.length > 5}
+                      size="md"
+                    />
                   </div>
                 </div>
 
@@ -1219,16 +1217,17 @@ Funding, Conflict of Interest, and Data Availability.
                           <label className="text-xs font-semibold text-slate-700">Keyword Separator</label>
                           {renderConfidenceBadge('general.keywordSeparator')}
                         </div>
-                        <select
+                        <CustomDropdown
                           value={reviewRules.general?.keywordSeparator ?? ''}
-                          onChange={(e) => updateRuleField('general', 'keywordSeparator', e.target.value || null)}
-                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        >
-                          <option value="">Unspecified</option>
-                          <option value="comma">Comma (,)</option>
-                          <option value="semicolon">Semicolon (;)</option>
-                          <option value="bullet">Bullet (•)</option>
-                        </select>
+                          onChange={(val) => updateRuleField('general', 'keywordSeparator', val || null)}
+                          options={[
+                            { value: '', label: 'Unspecified' },
+                            { value: 'comma', label: 'Comma (,)' },
+                            { value: 'semicolon', label: 'Semicolon (;)' },
+                            { value: 'bullet', label: 'Bullet (•)' },
+                          ]}
+                          size="sm"
+                        />
                       </div>
 
                       {/* Column Layout */}
@@ -1237,16 +1236,17 @@ Funding, Conflict of Interest, and Data Availability.
                           <label className="text-xs font-semibold text-slate-700">Column Layout</label>
                           {renderConfidenceBadge('layout.columns')}
                         </div>
-                        <select
+                        <CustomDropdown
                           value={reviewRules.layout?.columns ?? ''}
-                          onChange={(e) => updateRuleField('layout', 'columns', e.target.value || null)}
-                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        >
-                          <option value="">Unspecified</option>
-                          <option value="single">Single Column</option>
-                          <option value="double">Double Column</option>
-                          <option value="either">Either (Single or Double)</option>
-                        </select>
+                          onChange={(val) => updateRuleField('layout', 'columns', val || null)}
+                          options={[
+                            { value: '', label: 'Unspecified' },
+                            { value: 'single', label: 'Single Column' },
+                            { value: 'double', label: 'Double Column' },
+                            { value: 'either', label: 'Either (Single or Double)' },
+                          ]}
+                          size="sm"
+                        />
                       </div>
 
                       {/* Line Spacing */}
@@ -1255,16 +1255,17 @@ Funding, Conflict of Interest, and Data Availability.
                           <label className="text-xs font-semibold text-slate-700">Line Spacing</label>
                           {renderConfidenceBadge('layout.lineSpacing')}
                         </div>
-                        <select
+                        <CustomDropdown<string | number>
                           value={reviewRules.layout?.lineSpacing ?? ''}
-                          onChange={(e) => updateRuleField('layout', 'lineSpacing', e.target.value ? Number(e.target.value) : null)}
-                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        >
-                          <option value="">Unspecified</option>
-                          <option value={1}>Single (1.0)</option>
-                          <option value={1.5}>1.5 Lines</option>
-                          <option value={2}>Double (2.0)</option>
-                        </select>
+                          onChange={(val) => updateRuleField('layout', 'lineSpacing', val ? Number(val) : null)}
+                          options={[
+                            { value: '', label: 'Unspecified' },
+                            { value: 1, label: 'Single (1.0)' },
+                            { value: 1.5, label: '1.5 Lines' },
+                            { value: 2, label: 'Double (2.0)' },
+                          ]}
+                          size="sm"
+                        />
                       </div>
 
                       {/* LaTeX Document Class */}
@@ -1407,36 +1408,38 @@ Funding, Conflict of Interest, and Data Availability.
                         <label className="text-xs font-semibold text-slate-700">Citation Style</label>
                         {renderConfidenceBadge('citation.style')}
                       </div>
-                      <select
+                      <CustomDropdown
                         value={reviewRules.citation?.style ?? ''}
-                        onChange={(e) => updateRuleField('citation', 'style', e.target.value || null)}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="">Unspecified</option>
-                        <option value="Vancouver">Vancouver (Numbered)</option>
-                        <option value="IEEE">IEEE</option>
-                        <option value="APA">APA</option>
-                        <option value="Harvard">Harvard (Author-Date)</option>
-                        <option value="Nature">Nature</option>
-                        <option value="Springer">Springer</option>
-                        <option value="Elsevier">Elsevier</option>
-                        <option value="ACM">ACM</option>
-                        <option value="Chicago">Chicago</option>
-                        <option value="MLA">MLA</option>
-                        <option value="ACS">ACS</option>
-                        <option value="AMA">AMA</option>
-                        <option value="APS">APS</option>
-                        <option value="AMS">AMS</option>
-                        <option value="MPS">MPS</option>
-                        <option value="WCMS">WCMS</option>
-                        <option value="Basic">Basic</option>
-                        <option value="AuthorYear">AuthorYear</option>
-                        <option value="VancouverNumbered">VancouverNumbered</option>
-                        <option value="VancouverAuthorYear">VancouverAuthorYear</option>
-                        <option value="MathPhysNumbered">MathPhysNumbered</option>
-                        <option value="MathPhysAuthorYear">MathPhysAuthorYear</option>
-                        <option value="Other">Other</option>
-                      </select>
+                        onChange={(val) => updateRuleField('citation', 'style', val || null)}
+                        options={[
+                          { value: '', label: 'Unspecified' },
+                          { value: 'Vancouver', label: 'Vancouver (Numbered)' },
+                          { value: 'IEEE', label: 'IEEE' },
+                          { value: 'APA', label: 'APA' },
+                          { value: 'Harvard', label: 'Harvard (Author-Date)' },
+                          { value: 'Nature', label: 'Nature' },
+                          { value: 'Springer', label: 'Springer' },
+                          { value: 'Elsevier', label: 'Elsevier' },
+                          { value: 'ACM', label: 'ACM' },
+                          { value: 'Chicago', label: 'Chicago' },
+                          { value: 'MLA', label: 'MLA' },
+                          { value: 'ACS', label: 'ACS' },
+                          { value: 'AMA', label: 'AMA' },
+                          { value: 'APS', label: 'APS' },
+                          { value: 'AMS', label: 'AMS' },
+                          { value: 'MPS', label: 'MPS' },
+                          { value: 'WCMS', label: 'WCMS' },
+                          { value: 'Basic', label: 'Basic' },
+                          { value: 'AuthorYear', label: 'AuthorYear' },
+                          { value: 'VancouverNumbered', label: 'VancouverNumbered' },
+                          { value: 'VancouverAuthorYear', label: 'VancouverAuthorYear' },
+                          { value: 'MathPhysNumbered', label: 'MathPhysNumbered' },
+                          { value: 'MathPhysAuthorYear', label: 'MathPhysAuthorYear' },
+                          { value: 'Other', label: 'Other' },
+                        ]}
+                        searchable
+                        size="sm"
+                      />
                     </div>
 
                     {/* Numbered Citations */}
@@ -1445,15 +1448,16 @@ Funding, Conflict of Interest, and Data Availability.
                         <label className="text-xs font-semibold text-slate-700">Numbered Citations</label>
                         {renderConfidenceBadge('citation.numbered')}
                       </div>
-                      <select
+                      <CustomDropdown
                         value={reviewRules.citation?.numbered === true ? 'true' : reviewRules.citation?.numbered === false ? 'false' : ''}
-                        onChange={(e) => updateRuleField('citation', 'numbered', e.target.value === '' ? null : e.target.value === 'true')}
-                        className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                      >
-                        <option value="">Unspecified</option>
-                        <option value="true">Yes (Numbered [1] / Superscript)</option>
-                        <option value="false">No (Author-Year)</option>
-                      </select>
+                        onChange={(val) => updateRuleField('citation', 'numbered', val === '' ? null : val === 'true')}
+                        options={[
+                          { value: '', label: 'Unspecified' },
+                          { value: 'true', label: 'Yes (Numbered [1] / Superscript)' },
+                          { value: 'false', label: 'No (Author-Year)' },
+                        ]}
+                        size="sm"
+                      />
                     </div>
 
                     {/* Max References */}
@@ -1533,16 +1537,17 @@ Funding, Conflict of Interest, and Data Availability.
                           <label className="text-xs font-semibold text-slate-700">Peer Review Anonymity</label>
                           {renderConfidenceBadge('submission.reviewType')}
                         </div>
-                        <select
+                        <CustomDropdown
                           value={reviewRules.submission?.reviewType ?? ''}
-                          onChange={(e) => updateRuleField('submission', 'reviewType', e.target.value || null)}
-                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        >
-                          <option value="">Unspecified</option>
-                          <option value="single_blind">Single Blind (Authors known to reviewers)</option>
-                          <option value="double_blind">Double Blind (Fully anonymized)</option>
-                          <option value="open">Open Peer Review</option>
-                        </select>
+                          onChange={(val) => updateRuleField('submission', 'reviewType', val || null)}
+                          options={[
+                            { value: '', label: 'Unspecified' },
+                            { value: 'single_blind', label: 'Single Blind (Authors known to reviewers)' },
+                            { value: 'double_blind', label: 'Double Blind (Fully anonymized)' },
+                            { value: 'open', label: 'Open Peer Review' },
+                          ]}
+                          size="sm"
+                        />
                       </div>
 
                       {/* Cover Letter Required */}
@@ -1551,15 +1556,16 @@ Funding, Conflict of Interest, and Data Availability.
                           <label className="text-xs font-semibold text-slate-700">Cover Letter Mandatory</label>
                           {renderConfidenceBadge('submission.coverLetterRequired')}
                         </div>
-                        <select
+                        <CustomDropdown
                           value={reviewRules.submission?.coverLetterRequired === true ? 'true' : reviewRules.submission?.coverLetterRequired === false ? 'false' : ''}
-                          onChange={(e) => updateRuleField('submission', 'coverLetterRequired', e.target.value === '' ? null : e.target.value === 'true')}
-                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        >
-                          <option value="">Unspecified</option>
-                          <option value="true">Yes, Mandatory</option>
-                          <option value="false">No, Optional</option>
-                        </select>
+                          onChange={(val) => updateRuleField('submission', 'coverLetterRequired', val === '' ? null : val === 'true')}
+                          options={[
+                            { value: '', label: 'Unspecified' },
+                            { value: 'true', label: 'Yes, Mandatory' },
+                            { value: 'false', label: 'No, Optional' },
+                          ]}
+                          size="sm"
+                        />
                       </div>
 
                       {/* ORCID Required */}
@@ -1568,15 +1574,16 @@ Funding, Conflict of Interest, and Data Availability.
                           <label className="text-xs font-semibold text-slate-700">ORCID iD Mandatory</label>
                           {renderConfidenceBadge('submission.orcidRequired')}
                         </div>
-                        <select
+                        <CustomDropdown
                           value={reviewRules.submission?.orcidRequired === true ? 'true' : reviewRules.submission?.orcidRequired === false ? 'false' : ''}
-                          onChange={(e) => updateRuleField('submission', 'orcidRequired', e.target.value === '' ? null : e.target.value === 'true')}
-                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        >
-                          <option value="">Unspecified</option>
-                          <option value="true">Yes, Mandatory</option>
-                          <option value="false">No, Optional</option>
-                        </select>
+                          onChange={(val) => updateRuleField('submission', 'orcidRequired', val === '' ? null : val === 'true')}
+                          options={[
+                            { value: '', label: 'Unspecified' },
+                            { value: 'true', label: 'Yes, Mandatory' },
+                            { value: 'false', label: 'No, Optional' },
+                          ]}
+                          size="sm"
+                        />
                       </div>
 
                       {/* Highlights Required */}
@@ -1585,15 +1592,16 @@ Funding, Conflict of Interest, and Data Availability.
                           <label className="text-xs font-semibold text-slate-700">Highlights Mandatory</label>
                           {renderConfidenceBadge('submission.highlightsRequired')}
                         </div>
-                        <select
+                        <CustomDropdown
                           value={reviewRules.submission?.highlightsRequired === true ? 'true' : reviewRules.submission?.highlightsRequired === false ? 'false' : ''}
-                          onChange={(e) => updateRuleField('submission', 'highlightsRequired', e.target.value === '' ? null : e.target.value === 'true')}
-                          className="w-full px-3 h-[36px] rounded-lg border border-slate-200 text-xs bg-white"
-                        >
-                          <option value="">Unspecified</option>
-                          <option value="true">Yes, Mandatory</option>
-                          <option value="false">No, Optional</option>
-                        </select>
+                          onChange={(val) => updateRuleField('submission', 'highlightsRequired', val === '' ? null : val === 'true')}
+                          options={[
+                            { value: '', label: 'Unspecified' },
+                            { value: 'true', label: 'Yes, Mandatory' },
+                            { value: 'false', label: 'No, Optional' },
+                          ]}
+                          size="sm"
+                        />
                       </div>
 
                       {/* Highlight Count */}
@@ -1881,18 +1889,17 @@ Funding, Conflict of Interest, and Data Availability.
                   Select which workspace manuscript project should enforce these guideline rules for validation and template generation:
                 </p>
 
-                <select
+                <CustomDropdown
                   value={linkingProjectId}
-                  onChange={(e) => setLinkingProjectId(e.target.value)}
-                  className="w-full px-3 h-[40px] rounded-xl border border-slate-200 text-xs bg-white focus:border-[#0F766E] outline-none"
-                >
-                  <option value="">-- Choose Project --</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setLinkingProjectId(val)}
+                  placeholder="-- Choose Project --"
+                  options={[
+                    { value: '', label: '-- Choose Project --' },
+                    ...projects.map((p) => ({ value: p.id, label: p.title })),
+                  ]}
+                  searchable={projects.length > 5}
+                  size="md"
+                />
 
                 <div className="flex items-center justify-end gap-2 pt-2">
                   <Button variant="secondary" size="sm" onClick={() => setLinkingRuleSetId(null)}>
@@ -2019,41 +2026,44 @@ Funding, Conflict of Interest, and Data Availability.
           {/* Quick Customization Controls */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Column Layout</label>
-              <select
+              <CustomDropdown
+                label="Column Layout"
                 value={columnLayout}
-                onChange={(e) => setColumnLayout(e.target.value)}
-                className="w-full px-3 h-[38px] rounded-xl border border-slate-200 text-xs bg-white focus:border-[#0F766E] outline-none"
-              >
-                <option value="Double column">Double column</option>
-                <option value="Single column">Single column</option>
-              </select>
+                onChange={(val) => setColumnLayout(val)}
+                options={[
+                  { value: 'Double column', label: 'Double column' },
+                  { value: 'Single column', label: 'Single column' },
+                ]}
+                size="sm"
+              />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Referencing Style</label>
-              <select
+              <CustomDropdown
+                label="Referencing Style"
                 value={referencingStyle}
-                onChange={(e) => setReferencingStyle(e.target.value)}
-                className="w-full px-3 h-[38px] rounded-xl border border-slate-200 text-xs bg-white focus:border-[#0F766E] outline-none"
-              >
-                <option value="Vancouver">Vancouver (Numbered brackets [1])</option>
-                <option value="APA 7">APA 7th Edition (Author, Year)</option>
-                <option value="IEEE">IEEE Reference Style</option>
-                <option value="Harvard">Harvard Referencing</option>
-              </select>
+                onChange={(val) => setReferencingStyle(val)}
+                options={[
+                  { value: 'Vancouver', label: 'Vancouver (Numbered brackets [1])' },
+                  { value: 'APA 7', label: 'APA 7th Edition (Author, Year)' },
+                  { value: 'IEEE', label: 'IEEE Reference Style' },
+                  { value: 'Harvard', label: 'Harvard Referencing' },
+                ]}
+                size="sm"
+              />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">LaTeX Class</label>
-              <select
+              <CustomDropdown
+                label="LaTeX Class"
                 value={documentClass}
-                onChange={(e) => setDocumentClass(e.target.value)}
-                className="w-full px-3 h-[38px] rounded-xl border border-slate-200 text-xs bg-white focus:border-[#0F766E] outline-none"
-              >
-                <option value="sn-jnl (LaTeX2e)">sn-jnl (LaTeX2e)</option>
-                <option value="IEEEtran">IEEEtran</option>
-                <option value="elsarticle">elsarticle</option>
-                <option value="acmart">acmart</option>
-              </select>
+                onChange={(val) => setDocumentClass(val)}
+                options={[
+                  { value: 'sn-jnl (LaTeX2e)', label: 'sn-jnl (LaTeX2e)' },
+                  { value: 'IEEEtran', label: 'IEEEtran' },
+                  { value: 'elsarticle', label: 'elsarticle' },
+                  { value: 'acmart', label: 'acmart' },
+                ]}
+                size="sm"
+              />
             </div>
           </div>
 

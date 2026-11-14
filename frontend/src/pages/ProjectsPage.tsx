@@ -3,6 +3,7 @@ import { Plus, Search, FolderKanban, FileText, ArrowRight, CheckCircle2, Bookmar
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 import { useNavigate } from 'react-router-dom';
 
 export const ProjectsPage: React.FC = () => {
@@ -95,18 +96,17 @@ export const ProjectsPage: React.FC = () => {
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <span className="text-xs font-semibold text-slate-500 shrink-0">Field:</span>
-          <select
-            value={filterField}
-            onChange={(e) => setFilterField(e.target.value)}
-            className="h-[40px] px-3 rounded-xl border border-slate-200 text-sm bg-white text-slate-700 outline-none focus:border-[#0F766E] cursor-pointer"
-          >
-            <option value="All">All Disciplines</option>
-            {availableFields.map((field) => (
-              <option key={field} value={field}>
-                {field}
-              </option>
-            ))}
-          </select>
+          <div className="w-[180px]">
+            <CustomDropdown
+              value={filterField}
+              onChange={(val) => setFilterField(val)}
+              options={[
+                { value: 'All', label: 'All Disciplines' },
+                ...availableFields.map((field) => ({ value: field, label: field })),
+              ]}
+              size="sm"
+            />
+          </div>
         </div>
       </div>
 
@@ -241,20 +241,19 @@ export const ProjectsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">
-                  Field
-                </label>
-                <select
+                <CustomDropdown
+                  label="Field"
                   value={newField}
-                  onChange={(e) => setNewField(e.target.value)}
-                  className="w-full px-3.5 h-[40px] rounded-xl border border-slate-300 text-sm bg-white focus:border-[#0F766E] outline-none cursor-pointer"
-                >
-                  <option value="Environmental science">Environmental science</option>
-                  <option value="Urban studies">Urban studies</option>
-                  <option value="Computer science">Computer science</option>
-                  <option value="Ecology">Ecology</option>
-                  <option value="Energy systems">Energy systems</option>
-                </select>
+                  onChange={(val) => setNewField(val)}
+                  options={[
+                    { value: 'Environmental science', label: 'Environmental science' },
+                    { value: 'Urban studies', label: 'Urban studies' },
+                    { value: 'Computer science', label: 'Computer science' },
+                    { value: 'Ecology', label: 'Ecology' },
+                    { value: 'Energy systems', label: 'Energy systems' },
+                  ]}
+                  size="md"
+                />
               </div>
 
               <div>

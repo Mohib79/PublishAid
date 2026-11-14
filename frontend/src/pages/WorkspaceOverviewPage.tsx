@@ -22,6 +22,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 import {
   getProjectById,
   updateProject,
@@ -319,17 +320,18 @@ export const WorkspaceOverviewPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
-                <select
+                <CustomDropdown
+                  label="Status"
                   value={editStatus}
-                  onChange={e => setEditStatus(e.target.value)}
-                  className="w-full px-3 h-[38px] rounded-lg border border-slate-300 text-sm bg-white focus:border-[#0F766E] outline-none cursor-pointer"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="ready_to_submit">Ready to Submit</option>
-                  <option value="submitted">Submitted</option>
-                </select>
+                  onChange={(val) => setEditStatus(val)}
+                  options={[
+                    { value: 'draft', label: 'Draft' },
+                    { value: 'in_progress', label: 'In Progress' },
+                    { value: 'ready_to_submit', label: 'Ready to Submit' },
+                    { value: 'submitted', label: 'Submitted' },
+                  ]}
+                  size="md"
+                />
               </div>
             </div>
             <div>

@@ -29,6 +29,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 import { browseJournals, BrowseJournalsResponse } from '../lib/api';
 import { Journal } from '../types';
 
@@ -229,27 +230,27 @@ export const BrowseJournalsPage: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">
               Sort:
             </span>
-            <div className="relative flex-1 sm:flex-initial">
-              <select
+            <div className="relative flex-1 sm:flex-initial min-w-[190px]">
+              <CustomDropdown
                 value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
-                  // Default higher values first for metrics, A-Z for title
-                  if (e.target.value === 'title') {
+                onChange={(val) => {
+                  setSortBy(val);
+                  if (val === 'title') {
                     setSortOrder('asc');
                   } else {
                     setSortOrder('desc');
                   }
                   setCurrentPage(1);
                 }}
-                className="w-full sm:w-auto bg-slate-50 hover:bg-slate-100 text-xs sm:text-sm font-medium text-slate-700 py-2.5 pl-3 pr-8 rounded-xl border border-slate-200 focus:border-[#0F766E] outline-none cursor-pointer"
-              >
-                <option value="title">Title (A-Z)</option>
-                <option value="citescore">CiteScore (Highest)</option>
-                <option value="impact_factor">Impact Factor (Highest)</option>
-                <option value="acceptance_rate">Acceptance Rate (Highest)</option>
-                <option value="review_weeks">First Decision Time (Fastest)</option>
-              </select>
+                options={[
+                  { value: 'title', label: 'Title (A-Z)' },
+                  { value: 'citescore', label: 'CiteScore (Highest)' },
+                  { value: 'impact_factor', label: 'Impact Factor (Highest)' },
+                  { value: 'acceptance_rate', label: 'Acceptance Rate (Highest)' },
+                  { value: 'review_weeks', label: 'First Decision Time (Fastest)' },
+                ]}
+                size="md"
+              />
             </div>
 
             {/* Sort Direction Toggle */}
@@ -267,87 +268,79 @@ export const BrowseJournalsPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100 items-end">
           {/* Category Filter */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Subject Area
-            </label>
-            <select
+            <CustomDropdown
+              label="Subject Area"
               value={selectedCategory}
-              onChange={(e) => {
-                setSelectedCategory(e.target.value);
+              onChange={(val) => {
+                setSelectedCategory(val);
                 setCurrentPage(1);
               }}
-              className="w-full text-xs font-medium text-slate-700 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 focus:border-[#0F766E] outline-none cursor-pointer truncate"
-            >
-              <option value="all">All Subjects ({browseData.categories.length})</option>
-              {browseData.categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'all', label: `All Subjects (${browseData.categories.length})` },
+                ...browseData.categories.map((cat) => ({ value: cat, label: cat })),
+              ]}
+              searchable={browseData.categories.length > 8}
+              searchPlaceholder="Search subjects..."
+              size="sm"
+            />
           </div>
 
           {/* Publisher Filter */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Publisher
-            </label>
-            <select
+            <CustomDropdown
+              label="Publisher"
               value={selectedPublisher}
-              onChange={(e) => {
-                setSelectedPublisher(e.target.value);
+              onChange={(val) => {
+                setSelectedPublisher(val);
                 setCurrentPage(1);
               }}
-              className="w-full text-xs font-medium text-slate-700 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 focus:border-[#0F766E] outline-none cursor-pointer truncate"
-            >
-              <option value="all">All Publishers ({browseData.publishers.length})</option>
-              {browseData.publishers.map((pub) => (
-                <option key={pub} value={pub}>
-                  {pub}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'all', label: `All Publishers (${browseData.publishers.length})` },
+                ...browseData.publishers.map((pub) => ({ value: pub, label: pub })),
+              ]}
+              searchable={browseData.publishers.length > 8}
+              searchPlaceholder="Search publishers..."
+              size="sm"
+            />
           </div>
 
           {/* Quartile Filter */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Quartile
-            </label>
-            <select
+            <CustomDropdown
+              label="Quartile"
               value={selectedQuartile}
-              onChange={(e) => {
-                setSelectedQuartile(e.target.value);
+              onChange={(val) => {
+                setSelectedQuartile(val);
                 setCurrentPage(1);
               }}
-              className="w-full text-xs font-medium text-slate-700 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 focus:border-[#0F766E] outline-none cursor-pointer"
-            >
-              <option value="all">All Quartiles</option>
-              <option value="Q1">Q1 (Top 25%)</option>
-              <option value="Q2">Q2</option>
-              <option value="Q3">Q3</option>
-              <option value="Q4">Q4</option>
-            </select>
+              options={[
+                { value: 'all', label: 'All Quartiles' },
+                { value: 'Q1', label: 'Q1 (Top 25%)' },
+                { value: 'Q2', label: 'Q2' },
+                { value: 'Q3', label: 'Q3' },
+                { value: 'Q4', label: 'Q4' },
+              ]}
+              size="sm"
+            />
           </div>
 
           {/* Open Access Filter */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Access Model
-            </label>
-            <select
+            <CustomDropdown
+              label="Access Model"
               value={selectedOaType}
-              onChange={(e) => {
-                setSelectedOaType(e.target.value);
+              onChange={(val) => {
+                setSelectedOaType(val);
                 setCurrentPage(1);
               }}
-              className="w-full text-xs font-medium text-slate-700 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 focus:border-[#0F766E] outline-none cursor-pointer"
-            >
-              <option value="all">All Models</option>
-              <option value="Hybrid">Hybrid</option>
-              <option value="Open access">Open Access</option>
-              <option value="Subscription">Subscription</option>
-            </select>
+              options={[
+                { value: 'all', label: 'All Models' },
+                { value: 'Hybrid', label: 'Hybrid' },
+                { value: 'Open access', label: 'Open Access' },
+                { value: 'Subscription', label: 'Subscription' },
+              ]}
+              size="sm"
+            />
           </div>
 
           {/* Reset Action */}
@@ -394,19 +387,23 @@ export const BrowseJournalsPage: React.FC = () => {
         <div className="flex items-center gap-3 self-end sm:self-auto">
           {/* Per Page Selector */}
           <div className="flex items-center gap-1.5">
-            <span className="text-slate-400">Rows:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="bg-white border border-slate-200 text-xs text-slate-700 rounded-md py-1 px-2 outline-none cursor-pointer font-medium"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
+            <span className="text-slate-400 text-xs">Rows:</span>
+            <div className="w-[84px]">
+              <CustomDropdown<number>
+                value={pageSize}
+                onChange={(val) => {
+                  setPageSize(Number(val));
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: 10, label: '10' },
+                  { value: 20, label: '20' },
+                  { value: 50, label: '50' },
+                ]}
+                size="sm"
+                triggerClassName="h-[32px] px-2.5 text-xs"
+              />
+            </div>
           </div>
 
           {/* View Toggle */}

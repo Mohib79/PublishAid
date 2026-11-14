@@ -15,6 +15,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 import { getRecentActivity } from '../lib/api';
 import { ProjectActivityEvent } from '../types';
 
@@ -386,20 +387,19 @@ export const DashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
-                  Primary Research Field
-                </label>
-                <select
+                <CustomDropdown
+                  label="Primary Research Field"
                   value={newField}
-                  onChange={(e) => setNewField(e.target.value)}
-                  className="w-full px-3.5 h-[40px] rounded-xl border border-slate-300 text-sm focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/20 outline-none bg-white cursor-pointer"
-                >
-                  <option value="Environmental science">Environmental science</option>
-                  <option value="Urban studies">Urban studies</option>
-                  <option value="Computer science">Computer science</option>
-                  <option value="Ecology">Ecology</option>
-                  <option value="Energy systems">Energy systems</option>
-                </select>
+                  onChange={(val) => setNewField(val)}
+                  options={[
+                    { value: 'Environmental science', label: 'Environmental science' },
+                    { value: 'Urban studies', label: 'Urban studies' },
+                    { value: 'Computer science', label: 'Computer science' },
+                    { value: 'Ecology', label: 'Ecology' },
+                    { value: 'Energy systems', label: 'Energy systems' },
+                  ]}
+                  size="md"
+                />
               </div>
 
               <div>

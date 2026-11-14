@@ -13,6 +13,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 
 export const PaperSummarizerPage: React.FC = () => {
   const { addActivity } = useApp();
@@ -142,18 +143,17 @@ export const PaperSummarizerPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
-                Summary length
-              </label>
-              <select
+              <CustomDropdown
+                label="Summary length"
                 value={summaryLength}
-                onChange={(e) => setSummaryLength(e.target.value)}
-                className="w-full px-3.5 h-[40px] rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:border-[#0F766E] outline-none cursor-pointer"
-              >
-                <option value="Standard · about 300 words">Standard · about 300 words</option>
-                <option value="Concise · about 150 words">Concise · about 150 words</option>
-                <option value="Detailed · about 500 words">Detailed · about 500 words</option>
-              </select>
+                onChange={(val) => setSummaryLength(val)}
+                options={[
+                  { value: 'Standard · about 300 words', label: 'Standard', sublabel: 'About 300 words' },
+                  { value: 'Concise · about 150 words', label: 'Concise', sublabel: 'About 150 words' },
+                  { value: 'Detailed · about 500 words', label: 'Detailed', sublabel: 'About 500 words' },
+                ]}
+                size="md"
+              />
             </div>
 
             <Button
