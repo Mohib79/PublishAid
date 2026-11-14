@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -54,6 +54,7 @@ export const BrowseJournalsPage: React.FC = () => {
   const [selectedOaType, setSelectedOaType] = useState('all');
   const [sortBy, setSortBy] = useState('title');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filterShortlistedOnly, setFilterShortlistedOnly] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -139,6 +140,7 @@ export const BrowseJournalsPage: React.FC = () => {
     setSelectedOaType('all');
     setSortBy('title');
     setSortOrder('asc');
+    setFilterShortlistedOnly(false);
     setCurrentPage(1);
   };
 
@@ -148,7 +150,8 @@ export const BrowseJournalsPage: React.FC = () => {
     selectedPublisher !== 'all' ||
     selectedQuartile !== 'all' ||
     selectedOaType !== 'all' ||
-    sortBy !== 'title';
+    sortBy !== 'title' ||
+    filterShortlistedOnly;
 
   // Check shortlist state using context
   const isJournalShortlisted = (journalId: string) => {
@@ -166,8 +169,95 @@ export const BrowseJournalsPage: React.FC = () => {
     setTimeout(() => setCopiedScope(false), 2000);
   };
 
-  const shortlistedJournals = contextJournals.filter((j) => j.isShortlisted && /^\d+$/.test(j.id));
+  const shortlistedJournals = useMemo(() => {
+    return contextJournals.filter((j) => j.isShortlisted && /^\d+$/.test(j.id));
+  }, [contextJournals]);
   const totalShortlistedCount = shortlistedJournals.length;
+
+  // Filtered shortlist when filterShortlistedOnly is active
+  const filteredShortlist = useMemo(() => {
+    if (!filterShortlistedOnly) return [];
+    let list = [...shortlistedJournals];
+
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.trim().toLowerCase();
+      list = list.filter(
+        (j) =>
+          j.title.toLowerCase().includes(q) ||
+          (j.publisher && j.publisher.toLowerCase().includes(q)) ||
+          (j.subjectCategory && j.subjectCategory.toLowerCase().includes(q)) ||
+          (j.issn && j.issn.toLowerCase().includes(q)) ||
+          (j.aimsAndScope && j.aimsAndScope.toLowerCase().includes(q))
+      );
+    }
+    if (selectedCategory !== 'all') {
+      list = list.filter((j) => j.subjectCategory === selectedCategory);
+    }
+    if (selectedPublisher !== 'all') {
+      list = list.filter((j) => j.publisher === selectedPublisher);
+    }
+    if (selectedQuartile !== 'all') {
+      list = list.filter((j) => j.quartile === selectedQuartile);
+    }
+    if (selectedOaType !== 'all') {
+      list = list.filter((j) => j.openAccessType === selectedOaType);
+    }
+
+    // Sort
+    list.sort((a, b) => {
+      let valA: any =
+        (a as any)[sortBy] ??
+        (sortBy === 'citescore'
+          ? a.citeScore
+          : sortBy === 'impact_factor'
+          ? a.impactFactor
+          : sortBy === 'review_weeks'
+          ? a.reviewWeeks
+          : sortBy === 'acceptance_rate'
+          ? a.acceptanceRate
+          : null);
+      let valB: any =
+        (b as any)[sortBy] ??
+        (sortBy === 'citescore'
+          ? b.citeScore
+          : sortBy === 'impact_factor'
+          ? b.impactFactor
+          : sortBy === 'review_weeks'
+          ? b.reviewWeeks
+          : sortBy === 'acceptance_rate'
+          ? b.acceptanceRate
+          : null);
+
+      if (valA == null && valB == null) return 0;
+      if (valA == null) return 1;
+      if (valB == null) return -1;
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return sortOrder === 'asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+    });
+
+    return list;
+  }, [
+    filterShortlistedOnly,
+    shortlistedJournals,
+    debouncedSearch,
+    selectedCategory,
+    selectedPublisher,
+    selectedQuartile,
+    selectedOaType,
+    sortBy,
+    sortOrder,
+  ]);
+
+  const activeTotal = filterShortlistedOnly ? filteredShortlist.length : browseData.total;
+  const activeTotalPages = filterShortlistedOnly
+    ? Math.max(1, Math.ceil(filteredShortlist.length / pageSize))
+    : browseData.totalPages;
+  const activeItems = filterShortlistedOnly
+    ? filteredShortlist.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : browseData.items;
 
   return (
     <div className="space-y-6">
@@ -199,18 +289,23 @@ export const BrowseJournalsPage: React.FC = () => {
           </Button>
 
           <Button
-            variant="secondary"
-            onClick={() =>
-              navigate(
-                shortlistedJournals.length > 0
-                  ? `/compare?ids=${shortlistedJournals.slice(0, 4).map((j) => j.id).join(',')}`
-                  : '/compare'
+            variant={filterShortlistedOnly ? 'primary' : 'secondary'}
+            onClick={() => {
+              setFilterShortlistedOnly((prev) => !prev);
+              setCurrentPage(1);
+            }}
+            leftIcon={
+              filterShortlistedOnly ? (
+                <BookmarkCheck className="w-4 h-4 text-white" />
+              ) : (
+                <Bookmark className="w-4 h-4 text-[#0F766E]" />
               )
             }
-            leftIcon={<Bookmark className="w-4 h-4 text-[#0F766E]" />}
             className="shadow-2xs text-xs sm:text-sm"
           >
-            My Shortlist ({totalShortlistedCount})
+            {filterShortlistedOnly
+              ? `Shortlisted Only (${totalShortlistedCount})`
+              : `My Shortlist (${totalShortlistedCount})`}
           </Button>
 
           <Button
@@ -409,13 +504,14 @@ export const BrowseJournalsPage: React.FC = () => {
           <span>
             Showing{' '}
             <strong className="text-slate-800 font-semibold">
-              {browseData.total === 0
+              {activeTotal === 0
                 ? 0
-                : (browseData.page - 1) * browseData.limit + 1}
+                : (currentPage - 1) * pageSize + 1}
               –
-              {Math.min(browseData.page * browseData.limit, browseData.total)}
+              {Math.min(currentPage * pageSize, activeTotal)}
             </strong>{' '}
-            of <strong className="text-slate-800 font-semibold">{browseData.total}</strong> journals
+            of <strong className="text-slate-800 font-semibold">{activeTotal}</strong>{' '}
+            {filterShortlistedOnly ? 'shortlisted journals' : 'journals'}
           </span>
 
           {hasActiveFilters && (
@@ -490,16 +586,21 @@ export const BrowseJournalsPage: React.FC = () => {
             Try Again
           </Button>
         </div>
-      ) : browseData.items.length === 0 ? (
+      ) : activeItems.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-[#14283D]">No journals found</h3>
+            <h3 className="text-base font-bold text-[#14283D]">
+              {filterShortlistedOnly ? 'No shortlisted journals found' : 'No journals found'}
+            </h3>
             <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              No academic venues match your current search and filter combination. Try clearing
-              keywords or widening the selected subject area.
+              {filterShortlistedOnly
+                ? totalShortlistedCount === 0
+                  ? 'You have not shortlisted any journals yet. Click the bookmark icon on any journal card or table row to add it to your shortlist.'
+                  : 'No shortlisted journals match your current search and filter combination.'
+                : 'No academic venues match your current search and filter combination. Try clearing keywords or widening the selected subject area.'}
             </p>
           </div>
           <Button variant="secondary" size="sm" onClick={handleResetFilters}>
@@ -509,7 +610,7 @@ export const BrowseJournalsPage: React.FC = () => {
       ) : viewMode === 'grid' ? (
         /* GRID VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {browseData.items.map((journal) => {
+          {activeItems.map((journal) => {
             const shortlisted = isJournalShortlisted(journal.id);
             const compared = isJournalCompared(journal.id);
 
@@ -675,7 +776,7 @@ export const BrowseJournalsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {browseData.items.map((journal) => {
+                {activeItems.map((journal) => {
                   const shortlisted = isJournalShortlisted(journal.id);
                   const compared = isJournalCompared(journal.id);
 
@@ -773,12 +874,12 @@ export const BrowseJournalsPage: React.FC = () => {
       )}
 
       {/* 5. Pagination Bar */}
-      {browseData.totalPages > 1 && (
+      {activeTotalPages > 1 && (
         <div className="bg-white rounded-2xl border border-slate-200/90 px-4 py-3 flex items-center justify-between gap-2 shadow-xs">
           <Button
             variant="secondary"
             size="sm"
-            disabled={currentPage <= 1 || loading}
+            disabled={currentPage <= 1 || (loading && !filterShortlistedOnly)}
             onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
             leftIcon={<ChevronLeft className="w-4 h-4" />}
           >
@@ -786,11 +887,11 @@ export const BrowseJournalsPage: React.FC = () => {
           </Button>
 
           <div className="flex items-center gap-1">
-            {Array.from({ length: browseData.totalPages }, (_, i) => i + 1).map((pageNum) => {
+            {Array.from({ length: activeTotalPages }, (_, i) => i + 1).map((pageNum) => {
               // Show pages around current
               if (
                 pageNum === 1 ||
-                pageNum === browseData.totalPages ||
+                pageNum === activeTotalPages ||
                 Math.abs(pageNum - currentPage) <= 1
               ) {
                 return (
@@ -824,8 +925,8 @@ export const BrowseJournalsPage: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            disabled={currentPage >= browseData.totalPages || loading}
-            onClick={() => setCurrentPage((prev) => Math.min(browseData.totalPages, prev + 1))}
+            disabled={currentPage >= activeTotalPages || (loading && !filterShortlistedOnly)}
+            onClick={() => setCurrentPage((prev) => Math.min(activeTotalPages, prev + 1))}
             rightIcon={<ChevronRight className="w-4 h-4" />}
           >
             Next
