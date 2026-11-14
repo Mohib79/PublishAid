@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
@@ -118,12 +118,30 @@ export const JournalComparisonPage: React.FC = () => {
     };
   }, [rawIdsParam]);
 
-  // Redirect /compare (without ?ids=) to /compare?ids=... if context already has >= 2 selected
+  const didInitFromShortlistRef = useRef(false);
+
+  // Redirect /compare (without ?ids=) to /compare?ids=... if context already has >= 2 selected,
+  // or fall back on initial mount to the active workspace's shortlisted DB journal IDs.
   useEffect(() => {
-    if (rawIdsParam === null && selectedCompareJournalIds.length >= 2) {
-      setSearchParams({ ids: selectedCompareJournalIds.join(',') }, { replace: true });
+    if (rawIdsParam !== null) {
+      didInitFromShortlistRef.current = true;
+      return;
     }
-  }, [rawIdsParam, selectedCompareJournalIds, setSearchParams]);
+    if (selectedCompareJournalIds.length >= 2) {
+      didInitFromShortlistRef.current = true;
+      setSearchParams({ ids: selectedCompareJournalIds.join(',') }, { replace: true });
+      return;
+    }
+    if (!didInitFromShortlistRef.current) {
+      const shortlistedIds = contextJournals
+        .filter((j) => j.isShortlisted && /^\d+$/.test(j.id))
+        .map((j) => j.id);
+      if (shortlistedIds.length > 0) {
+        didInitFromShortlistRef.current = true;
+        setSearchParams({ ids: shortlistedIds.slice(0, 4).join(',') }, { replace: true });
+      }
+    }
+  }, [rawIdsParam, selectedCompareJournalIds, contextJournals, setSearchParams]);
 
   // Effective journal IDs shown on this page
   const activeIds = useMemo(() => {
@@ -1063,7 +1081,7 @@ export const JournalComparisonPage: React.FC = () => {
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                From my shortlist
+                From my shortlist{activeDbProjectId && !isLoadingShortlist ? ` (${shortlistItems.length})` : ''}
               </button>
             </div>
 

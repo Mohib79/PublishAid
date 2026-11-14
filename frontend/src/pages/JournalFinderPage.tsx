@@ -15,7 +15,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
-import { Journal } from '../types';
+import { Journal, Project } from '../types';
 import { matchJournals, createProject, shortlistJournal, unshortlistJournal } from '../lib/api';
 
 /**
@@ -31,6 +31,7 @@ export const JournalFinderPage: React.FC = () => {
   const {
     activeProject,
     setActiveProject,
+    refreshProjects,
     journals,
     mergeJournals,
     setJournalShortlisted,
@@ -152,16 +153,19 @@ export const JournalFinderPage: React.FC = () => {
     setValidationError(null);
     setNotificationMessage(null);
 
-    const isCurrentlyShortlisted = !!journal.isShortlisted;
+    const isCurrentlyShortlisted = Boolean(
+      journals.find((cj) => cj.id === journal.id)?.isShortlisted ?? journal.isShortlisted
+    );
     const newShortlistedState = !isCurrentlyShortlisted;
 
     // Optimistically update card & context state
     setMatchedJournals((prev) =>
       prev.map((j) => (j.id === journal.id ? { ...j, isShortlisted: newShortlistedState } : j))
     );
-    setJournalShortlisted(journal.id, newShortlistedState);
+    setJournalShortlisted(journal.id, newShortlistedState, journal);
     setInFlightShortlistIds((prev) => new Set(prev).add(journal.id));
 
+    let createdProject: Project | null = null;
     try {
       let targetProjectId = activeProject?.id;
       const isDbProjectId = !!targetProjectId && /^\d+$/.test(targetProjectId);
@@ -197,27 +201,34 @@ export const JournalFinderPage: React.FC = () => {
           keywords: kwList,
         });
 
-        setActiveProject(newProj);
+        createdProject = newProj;
         targetProjectId = newProj.id;
-        setNotificationMessage(`Created project "${newProj.title}" and shortlisted journal.`);
         creatingProjectRef.current = false;
       }
 
       if (newShortlistedState) {
-        await shortlistJournal(targetProjectId, journal.id, journal.rawSimilarity ?? undefined);
-        if (!notificationMessage) {
+        await shortlistJournal(targetProjectId!, journal.id, journal.rawSimilarity ?? undefined);
+        if (createdProject) {
+          setActiveProject(createdProject);
+          setNotificationMessage(`Created project "${createdProject.title}" and shortlisted journal.`);
+        } else {
           setNotificationMessage(`Added "${journal.title}" to shortlist.`);
         }
       } else {
-        await unshortlistJournal(targetProjectId, journal.id);
+        await unshortlistJournal(targetProjectId!, journal.id);
         setNotificationMessage(`Removed "${journal.title}" from shortlist.`);
       }
+
+      await refreshProjects();
     } catch (err: any) {
+      if (createdProject) {
+        setActiveProject(createdProject);
+      }
       // Rollback optimistic update
       setMatchedJournals((prev) =>
         prev.map((j) => (j.id === journal.id ? { ...j, isShortlisted: isCurrentlyShortlisted } : j))
       );
-      setJournalShortlisted(journal.id, isCurrentlyShortlisted);
+      setJournalShortlisted(journal.id, isCurrentlyShortlisted, journal);
       setValidationError(err.message || 'Failed to update shortlist.');
     } finally {
       creatingProjectRef.current = false;
@@ -229,7 +240,8 @@ export const JournalFinderPage: React.FC = () => {
     }
   };
 
-  const shortlistedCount = journals.filter((j) => j.isShortlisted).length;
+  const shortlistedJournals = journals.filter((j) => j.isShortlisted && /^\d+$/.test(j.id));
+  const shortlistedCount = shortlistedJournals.length;
 
   // Extract distinct publishers from real matching results
   const availablePublishers = React.useMemo(() => {
@@ -280,7 +292,13 @@ export const JournalFinderPage: React.FC = () => {
           </Button>
           <Button
             variant="secondary"
-            onClick={() => navigate('/compare')}
+            onClick={() =>
+              navigate(
+                shortlistedJournals.length > 0
+                  ? `/compare?ids=${shortlistedJournals.slice(0, 4).map((j) => j.id).join(',')}`
+                  : '/compare'
+              )
+            }
             leftIcon={<Bookmark className="w-4 h-4 text-[#0F766E]" />}
             className="shadow-2xs"
           >
@@ -579,6 +597,9 @@ export const JournalFinderPage: React.FC = () => {
                   filteredJournals.map((journal) => {
                     const isCompared = selectedCompareJournalIds.includes(journal.id);
                     const isInFlight = inFlightShortlistIds.has(journal.id);
+                    const isShortlisted = Boolean(
+                      journals.find((cj) => cj.id === journal.id)?.isShortlisted ?? journal.isShortlisted
+                    );
 
                     return (
                       <div
@@ -630,14 +651,14 @@ export const JournalFinderPage: React.FC = () => {
                             type="button"
                             disabled={isInFlight}
                             onClick={() => handleToggleShortlist(journal)}
-                            title={journal.isShortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
+                            title={isShortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
                             className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                              journal.isShortlisted
+                              isShortlisted
                                 ? 'text-[#0F766E] bg-[#CCFBF1]'
                                 : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
                             } ${isInFlight ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
-                            {journal.isShortlisted ? (
+                            {isShortlisted ? (
                               <BookmarkCheck className="w-4 h-4 fill-current stroke-[2]" />
                             ) : (
                               <Bookmark className="w-4 h-4" />
@@ -679,17 +700,17 @@ export const JournalFinderPage: React.FC = () => {
                             <Button
                               size="sm"
                               disabled={isInFlight}
-                              variant={journal.isShortlisted ? 'primary' : 'secondary'}
+                              variant={isShortlisted ? 'primary' : 'secondary'}
                               onClick={() => handleToggleShortlist(journal)}
                               leftIcon={
-                                journal.isShortlisted ? (
+                                isShortlisted ? (
                                   <Check className="w-3.5 h-3.5" />
                                 ) : (
                                   <Bookmark className="w-3.5 h-3.5" />
                                 )
                               }
                             >
-                              {journal.isShortlisted ? 'Shortlisted' : 'Shortlist'}
+                              {isShortlisted ? 'Shortlisted' : 'Shortlist'}
                             </Button>
                           </div>
                         </div>

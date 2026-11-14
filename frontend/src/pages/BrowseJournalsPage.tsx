@@ -36,6 +36,7 @@ import { Journal } from '../types';
 export const BrowseJournalsPage: React.FC = () => {
   const navigate = useNavigate();
   const {
+    mergeJournals,
     toggleShortlistJournal,
     selectedCompareJournalIds,
     toggleCompareJournal,
@@ -104,6 +105,7 @@ export const BrowseJournalsPage: React.FC = () => {
         limit: pageSize,
       });
       setBrowseData(res);
+      mergeJournals(res.items || []);
     } catch (err: any) {
       console.error('Failed to browse journals:', err);
       setError(err.message || 'Failed to load journals from the database.');
@@ -120,6 +122,7 @@ export const BrowseJournalsPage: React.FC = () => {
     sortOrder,
     currentPage,
     pageSize,
+    mergeJournals,
   ]);
 
   useEffect(() => {
@@ -163,7 +166,8 @@ export const BrowseJournalsPage: React.FC = () => {
     setTimeout(() => setCopiedScope(false), 2000);
   };
 
-  const totalShortlistedCount = contextJournals.filter((j) => j.isShortlisted).length;
+  const shortlistedJournals = contextJournals.filter((j) => j.isShortlisted && /^\d+$/.test(j.id));
+  const totalShortlistedCount = shortlistedJournals.length;
 
   return (
     <div className="space-y-6">
@@ -196,7 +200,13 @@ export const BrowseJournalsPage: React.FC = () => {
 
           <Button
             variant="secondary"
-            onClick={() => navigate('/compare')}
+            onClick={() =>
+              navigate(
+                shortlistedJournals.length > 0
+                  ? `/compare?ids=${shortlistedJournals.slice(0, 4).map((j) => j.id).join(',')}`
+                  : '/compare'
+              )
+            }
             leftIcon={<Bookmark className="w-4 h-4 text-[#0F766E]" />}
             className="shadow-2xs text-xs sm:text-sm"
           >
@@ -546,7 +556,7 @@ export const BrowseJournalsPage: React.FC = () => {
 
                     {/* Bookmark action */}
                     <button
-                      onClick={() => toggleShortlistJournal(journal.id)}
+                      onClick={() => toggleShortlistJournal(journal.id, journal)}
                       title={shortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
                       className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
                         shortlisted
@@ -726,7 +736,7 @@ export const BrowseJournalsPage: React.FC = () => {
                       >
                         <div className="flex items-center justify-center gap-1.5">
                           <button
-                            onClick={() => toggleShortlistJournal(journal.id)}
+                            onClick={() => toggleShortlistJournal(journal.id, journal)}
                             title={shortlisted ? 'Remove shortlist' : 'Add to shortlist'}
                             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                               shortlisted
@@ -949,7 +959,7 @@ export const BrowseJournalsPage: React.FC = () => {
                 <Button
                   variant={isJournalShortlisted(selectedModalJournal.id) ? 'mint' : 'secondary'}
                   size="sm"
-                  onClick={() => toggleShortlistJournal(selectedModalJournal.id)}
+                  onClick={() => toggleShortlistJournal(selectedModalJournal.id, selectedModalJournal)}
                   leftIcon={
                     isJournalShortlisted(selectedModalJournal.id) ? (
                       <BookmarkCheck className="w-4 h-4" />
