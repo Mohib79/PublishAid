@@ -135,3 +135,55 @@ class JournalBrowseResponse(BaseModel):
     total_pages: int
     categories: list[str]
     publishers: list[str]
+
+
+class CompareCompletenessOut(BaseModel):
+    available: int
+    total: int
+
+
+class CompareProjectContextOut(BaseModel):
+    isShortlisted: bool
+    isTarget: bool
+    rawSimilarity: Optional[float] = None
+    matchScore: Optional[int] = None
+
+
+class CompareJournalHeaderOut(BaseModel):
+    id: str
+    title: str
+    publisher: str
+    homepageUrl: Optional[str] = None
+    metadataUpdatedAt: Optional[str] = None
+    completeness: CompareCompletenessOut
+    projectContext: Optional[CompareProjectContextOut] = None
+
+
+class CompareGroupOut(BaseModel):
+    key: str
+    label: str
+
+
+class CompareCellValueOut(BaseModel):
+    value: Any = None
+    isBest: bool
+
+
+class CompareRowOut(BaseModel):
+    key: str
+    label: str
+    group: str
+    type: str
+    direction: str
+    alwaysShow: bool
+    note: str
+    allSame: bool
+    values: list[CompareCellValueOut]
+
+
+class JournalCompareResponse(BaseModel):
+    journals: list[CompareJournalHeaderOut]
+    groups: list[CompareGroupOut]
+    rows: list[CompareRowOut]
+    notes: list[str]
+    generatedAt: str
