@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2,
   Sliders,
@@ -82,6 +83,7 @@ function safeFormatDate(raw?: string | null): string {
 
 export const GuidelinesTemplatesPage: React.FC = () => {
   const { projects, activeProject, setActiveProjectId, journals, addActivity } = useApp();
+  const [searchParams] = useSearchParams();
 
   // Primary page tabs
   const [activeTab, setActiveTab] = useState<'extract' | 'rulesets' | 'template'>('extract');
@@ -198,6 +200,16 @@ export const GuidelinesTemplatesPage: React.FC = () => {
     loadRuleSets();
     loadCatalogJournals();
   }, []);
+
+  // Pre-select journal if opened via deep link (/guidelines?journalId=...)
+  useEffect(() => {
+    const journalIdParam = searchParams.get('journalId');
+    if (journalIdParam && journalIdParam.trim()) {
+      setSelectedJournalId(journalIdParam.trim());
+      setActiveTab('extract');
+      setExtractionSubStep('input');
+    }
+  }, [searchParams]);
 
   // ==========================================
   // EXTRACTION INITIATION & POLLING

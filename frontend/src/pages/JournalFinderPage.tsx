@@ -36,6 +36,8 @@ export const JournalFinderPage: React.FC = () => {
     setJournalShortlisted,
     selectedCompareJournalIds,
     toggleCompareJournal,
+    compareNotification,
+    clearCompareNotification,
   } = useApp();
 
   // Input states start empty per plan specification (ignoring mock urban-heat project from initial data)
@@ -266,15 +268,45 @@ export const JournalFinderPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="secondary"
-          onClick={() => navigate('/compare')}
-          leftIcon={<Bookmark className="w-4 h-4 text-[#0F766E]" />}
-          className="shadow-2xs self-start sm:self-auto"
-        >
-          My shortlist · {shortlistedCount}
-        </Button>
+        <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-auto">
+          <Button
+            variant={selectedCompareJournalIds.length >= 2 ? 'primary' : 'secondary'}
+            disabled={selectedCompareJournalIds.length < 2}
+            onClick={() => navigate(`/compare?ids=${selectedCompareJournalIds.join(',')}`)}
+            leftIcon={<Columns2 className="w-4 h-4" />}
+            className="shadow-2xs"
+          >
+            Compare Selected ({selectedCompareJournalIds.length})
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => navigate('/compare')}
+            leftIcon={<Bookmark className="w-4 h-4 text-[#0F766E]" />}
+            className="shadow-2xs"
+          >
+            My shortlist · {shortlistedCount}
+          </Button>
+        </div>
       </div>
+
+      {compareNotification && (
+        <div
+          role="alert"
+          className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span className="font-medium">{compareNotification}</span>
+          </div>
+          <button
+            type="button"
+            onClick={clearCompareNotification}
+            className="text-amber-600 hover:text-amber-900 font-bold ml-3 cursor-pointer"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Main Grid: Form on Left, Output on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

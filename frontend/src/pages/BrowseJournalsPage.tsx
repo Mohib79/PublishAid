@@ -39,6 +39,8 @@ export const BrowseJournalsPage: React.FC = () => {
     toggleShortlistJournal,
     selectedCompareJournalIds,
     toggleCompareJournal,
+    compareNotification,
+    clearCompareNotification,
     journals: contextJournals,
   } = useApp();
 
@@ -183,6 +185,16 @@ export const BrowseJournalsPage: React.FC = () => {
 
         <div className="flex items-center gap-2.5 flex-wrap shrink-0">
           <Button
+            variant={selectedCompareJournalIds.length >= 2 ? 'primary' : 'secondary'}
+            disabled={selectedCompareJournalIds.length < 2}
+            onClick={() => navigate(`/compare?ids=${selectedCompareJournalIds.join(',')}`)}
+            leftIcon={<Columns2 className="w-4 h-4" />}
+            className="shadow-2xs text-xs sm:text-sm"
+          >
+            Compare Selected ({selectedCompareJournalIds.length})
+          </Button>
+
+          <Button
             variant="secondary"
             onClick={() => navigate('/compare')}
             leftIcon={<Bookmark className="w-4 h-4 text-[#0F766E]" />}
@@ -201,6 +213,25 @@ export const BrowseJournalsPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {compareNotification && (
+        <div
+          role="alert"
+          className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span className="font-medium">{compareNotification}</span>
+          </div>
+          <button
+            type="button"
+            onClick={clearCompareNotification}
+            className="text-amber-600 hover:text-amber-900 font-bold ml-3 cursor-pointer"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* 2. Search & Filter Bar */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">

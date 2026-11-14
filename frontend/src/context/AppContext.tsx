@@ -25,7 +25,10 @@ interface AppContextType {
   toggleShortlistJournal: (journalId: string) => void;
   setJournalShortlisted: (journalId: string, isShortlisted: boolean) => void;
   selectedCompareJournalIds: string[];
+  setSelectedCompareJournalIds: (ids: string[]) => void;
   toggleCompareJournal: (journalId: string) => void;
+  compareNotification: string | null;
+  clearCompareNotification: () => void;
   conversions: ConversionJob[];
   addConversion: (file: File | { name: string; size: string }, sourceFormat: 'DOCX' | 'TEX', targetFormat: 'TEX' | 'DOCX') => ConversionJob;
   transformations: TransformationJob[];
@@ -55,7 +58,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [journals, setJournals] = useState<Journal[]>(initialJournals);
-  const [selectedCompareJournalIds, setSelectedCompareJournalIds] = useState<string[]>(['jrn_01', 'jrn_02', 'jrn_03']);
+  const [selectedCompareJournalIds, setSelectedCompareJournalIdsState] = useState<string[]>([]);
+  const [compareNotification, setCompareNotification] = useState<string | null>(null);
   const [conversions, setConversions] = useState<ConversionJob[]>(initialConversions);
   const [transformations, setTransformations] = useState<TransformationJob[]>(initialTransformations);
   const [complianceReport] = useState<ComplianceReport>(initialReport);
@@ -78,7 +82,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
+  const activeProject = activeProjectId ? projects.find(p => p.id === activeProjectId) : undefined;
 
   const setActiveProject = (project: Project) => {
     setProjects(prev => {
@@ -112,15 +116,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setActiveProjectIdState(fetched.id);
           } catch {
             localStorage.removeItem(ACTIVE_PROJECT_KEY);
-            if (res.items.length > 0) {
-              setActiveProjectId(res.items[0].id);
-            } else {
-              setActiveProjectIdState('');
-            }
+            setActiveProjectIdState('');
           }
         }
-      } else if (res.items.length > 0) {
-        setActiveProjectId(res.items[0].id);
+      } else {
+        setActiveProjectIdState('');
       }
     } catch (err: any) {
       setProjectsError(err.message || 'Failed to load projects');
@@ -187,18 +187,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const toggleCompareJournal = (journalId: string) => {
-    setSelectedCompareJournalIds(prev => {
-      if (prev.includes(journalId)) {
-        return prev.filter(id => id !== journalId);
-      }
-      if (prev.length >= 4) {
-        alert('At most 4 journals can be compared simultaneously.');
-        return prev;
-      }
-      return [...prev, journalId];
-    });
-  };
+  const setSelectedCompareJournalIds = useCallback((ids: string[]) => {
+    const deduped = Array.from(new Set(ids.map((id) => String(id).trim()).filter(Boolean))).slice(0, 4);
+    setSelectedCompareJournalIdsState(deduped);
+  }, []);
+
+  const clearCompareNotification = useCallback(() => {
+    setCompareNotification(null);
+  }, []);
+
+  const toggleCompareJournal = useCallback((journalId: string) => {
+    if (selectedCompareJournalIds.includes(journalId)) {
+      setCompareNotification(null);
+      setSelectedCompareJournalIdsState(prev => prev.filter(id => id !== journalId));
+      return;
+    }
+    if (selectedCompareJournalIds.length >= 4) {
+      setCompareNotification('At most four journals can be compared at one time.');
+      return;
+    }
+    setCompareNotification(null);
+    setSelectedCompareJournalIdsState(prev => (prev.includes(journalId) || prev.length >= 4 ? prev : [...prev, journalId]));
+  }, [selectedCompareJournalIds]);
 
   const addConversion = (file: File | { name: string; size: string }, sourceFormat: 'DOCX' | 'TEX', targetFormat: 'TEX' | 'DOCX') => {
     const sizeStr = 'size' in file && typeof file.size === 'number' ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : (file as any).size || '2.0 MB';
@@ -255,6 +265,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUserState(null);
       setProjects([]);
       setActiveProjectIdState('');
+      setSelectedCompareJournalIdsState([]);
+      setCompareNotification(null);
       setIsAuthLoading(false);
       return;
     }
@@ -274,6 +286,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUserState(null);
         setProjects([]);
         setActiveProjectIdState('');
+        setSelectedCompareJournalIdsState([]);
+        setCompareNotification(null);
       })
       .finally(() => {
         setIsAuthLoading(false);
@@ -293,6 +307,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUserState(null);
       setProjects([]);
       setActiveProjectIdState('');
+      setSelectedCompareJournalIdsState([]);
+      setCompareNotification(null);
     }
   };
 
@@ -306,6 +322,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUserState(null);
     setProjects([]);
     setActiveProjectIdState('');
+    setSelectedCompareJournalIdsState([]);
+    setCompareNotification(null);
   };
 
   return (
@@ -330,7 +348,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleShortlistJournal,
         setJournalShortlisted,
         selectedCompareJournalIds,
+        setSelectedCompareJournalIds,
         toggleCompareJournal,
+        compareNotification,
+        clearCompareNotification,
         conversions,
         addConversion,
         transformations,
