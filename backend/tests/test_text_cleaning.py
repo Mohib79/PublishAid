@@ -1,4 +1,8 @@
-from app.core.embeddings_config import build_journal_lexical_text, build_journal_text
+from app.core.embeddings_config import (
+    build_journal_lexical_text,
+    build_journal_text,
+    normalize_whitespace,
+)
 from app.core.text_cleaning import clean_text
 from app.services.matching import build_query_text
 
@@ -57,3 +61,11 @@ def test_build_journal_lexical_text_includes_subject():
         subject_category="Networking",
     )
     assert lexical == "Computer Networks Networking Publishes research on SDN and routing."
+
+
+def test_escaped_newlines_do_not_produce_stray_n_tokens():
+    raw = "Over time.\\n\\nAreas of interest:\\n• Software systems\\n• Code evolution"
+    assert normalize_whitespace(raw) == "Over time. Areas of interest: • Software systems • Code evolution"
+    tokens = clean_text(raw, remove_stopwords=True).split()
+    assert "n" not in tokens
+    assert tokens == ["time", "areas", "interest", "software", "systems", "code", "evolution"]

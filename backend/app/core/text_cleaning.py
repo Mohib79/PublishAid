@@ -44,7 +44,8 @@ def clean_text(
     if not text:
         return ""
 
-    #normalizing unicode
+    #normalizing unicode and unescaping literal newline sequences
+    text = text.replace("\\r\\n", " ").replace("\\n", " ")
     text = unicodedata.normalize("NFKD", text)
 
     #remove URLs

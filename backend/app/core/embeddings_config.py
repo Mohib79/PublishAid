@@ -22,10 +22,11 @@ def get_query_prefix(model_name: str) -> str:
 
 
 def normalize_whitespace(text: str | None) -> str:
-    """Collapses repeated whitespace and newlines while keeping natural punctuation and casing."""
+    """Collapses escaped newlines and repeated whitespace while keeping natural punctuation and casing."""
     if not text:
         return ""
-    return re.sub(r"\s+", " ", text).strip()
+    unescaped = text.replace("\\r\\n", " ").replace("\\n", " ")
+    return re.sub(r"\s+", " ", unescaped).strip()
 
 
 def build_journal_text(title: str, aims_and_scope: str) -> str:

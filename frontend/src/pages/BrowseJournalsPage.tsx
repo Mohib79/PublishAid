@@ -689,7 +689,7 @@ export const BrowseJournalsPage: React.FC = () => {
                   </div>
 
                   {/* Aims and scope snippet */}
-                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed whitespace-pre-line">
                     {journal.aimsAndScope?.replace(/\\n/g, '\n')}
                   </p>
                 </div>

@@ -9,6 +9,12 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 
+def _unescape_newlines(val: Any) -> Any:
+    if isinstance(val, str):
+        return val.replace("\\r\\n", "\n").replace("\\n", "\n")
+    return val
+
+
 class JournalItemOut(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -42,7 +48,7 @@ class JournalItemOut(BaseModel):
                 "citeScore": data.citescore,
                 "impactFactor": data.impact_factor,
                 "quartile": data.quartile,
-                "aimsAndScope": data.aims_and_scope,
+                "aimsAndScope": _unescape_newlines(data.aims_and_scope),
                 "openAccessType": data.open_access_type,
                 "reviewWeeks": data.review_weeks,
                 "acceptanceRate": data.acceptance_rate,
@@ -55,6 +61,10 @@ class JournalItemOut(BaseModel):
                 mapped["title"] = mapped["journal_title"]
             if "citescore" in mapped and "citeScore" not in mapped:
                 mapped["citeScore"] = mapped["citescore"]
+            if "aims_and_scope" in mapped:
+                mapped["aims_and_scope"] = _unescape_newlines(mapped["aims_and_scope"])
+            if "aimsAndScope" in mapped:
+                mapped["aimsAndScope"] = _unescape_newlines(mapped["aimsAndScope"])
             return mapped
         return data
 

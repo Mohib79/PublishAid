@@ -673,8 +673,8 @@ export const JournalFinderPage: React.FC = () => {
                         </div>
 
                         {/* Scope snippet */}
-                        <p className="text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-                          {journal.aimsAndScope}
+                        <p className="text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 leading-relaxed whitespace-pre-line">
+                          {journal.aimsAndScope?.replace(/\\n/g, '\n')}
                         </p>
 
                         {/* Bottom Bar: Metrics & Actions */}
