@@ -1,4 +1,22 @@
-import { User, Journal, Project, MatchRequest, MatchResponse, CreateProjectPayload } from '../types';
+import {
+  User,
+  Journal,
+  Project,
+  MatchRequest,
+  MatchResponse,
+  CreateProjectPayload,
+  PatchProjectPayload,
+  ProjectListResponse,
+  ProjectActivityEvent,
+  GuidelineExtractionJob,
+  GuidelineRuleSet,
+  CreateExtractionPayload,
+  ConfirmExtractionPayload,
+  CreateRuleSetPayload,
+  PatchRuleSetPayload,
+  EffectiveRulesResponse,
+  JournalCompareResponse,
+} from '../types';
 
 // Storing auth token in localStorage.
 // Security note: Acknowledged XSS tradeoff for this project environment.
@@ -69,22 +87,37 @@ export function clearStoredToken(): void {
   }
 }
 
-async function parseErrorMessage(res: Response): Promise<string> {
+export interface ApiError extends Error {
+  status?: number;
+  missingIds?: string[];
+}
+
+async function parseErrorData(res: Response): Promise<{ message: string; missingIds?: string[] }> {
   try {
     const data = await res.json();
+    let message = '';
     if (data && data.detail) {
       if (typeof data.detail === 'string') {
-        return data.detail;
+        message = data.detail;
+      } else if (Array.isArray(data.detail) && data.detail.length > 0) {
+        message = data.detail.map((err: any) => err.msg || JSON.stringify(err)).join(', ');
+      } else {
+        message = JSON.stringify(data.detail);
       }
-      if (Array.isArray(data.detail) && data.detail.length > 0) {
-        return data.detail.map((err: any) => err.msg || JSON.stringify(err)).join(', ');
-      }
-      return JSON.stringify(data.detail);
     }
+    const missingIds = Array.isArray(data?.missingIds)
+      ? data.missingIds.map((id: any) => String(id))
+      : undefined;
+    return {
+      message: message || `Request failed with status ${res.status} (${res.statusText || 'Error'})`,
+      missingIds,
+    };
   } catch {
     // Response was not JSON
   }
-  return `Request failed with status ${res.status} (${res.statusText || 'Error'})`;
+  return {
+    message: `Request failed with status ${res.status} (${res.statusText || 'Error'})`,
+  };
 }
 
 async function apiRequest<T>(
@@ -93,8 +126,10 @@ async function apiRequest<T>(
   isProtected = false
 ): Promise<T> {
   const token = getStoredToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(options.headers as Record<string, string>),
   };
 
@@ -111,8 +146,17 @@ async function apiRequest<T>(
     if (response.status === 401 && isProtected) {
       clearStoredToken();
     }
-    const message = await parseErrorMessage(response);
-    throw new Error(message);
+    const { message, missingIds } = await parseErrorData(response);
+    const err = new Error(message) as ApiError;
+    err.status = response.status;
+    if (missingIds) {
+      err.missingIds = missingIds;
+    }
+    throw err;
+  }
+
+  if (response.status === 204) {
+    return undefined as unknown as T;
   }
 
   return response.json();
@@ -165,11 +209,56 @@ export async function getJournalById(journalId: string | number): Promise<Journa
   return apiRequest<Journal>(`/journals/${journalId}`, { method: 'GET' }, true);
 }
 
+export async function compareJournals(
+  ids: (string | number)[],
+  projectId?: string | number | null,
+  includeRequirements = false
+): Promise<JournalCompareResponse> {
+  const query = new URLSearchParams();
+  query.set(
+    'ids',
+    ids
+      .map((id) => String(id).trim())
+      .filter(Boolean)
+      .join(',')
+  );
+  if (projectId !== undefined && projectId !== null && String(projectId).trim() !== '') {
+    query.set('projectId', String(projectId).trim());
+  }
+  if (includeRequirements) {
+    query.set('include', 'requirements');
+  }
+  return apiRequest<JournalCompareResponse>(`/journals/compare?${query.toString()}`, { method: 'GET' }, true);
+}
+
 export async function matchJournals(payload: MatchRequest): Promise<MatchResponse> {
   return apiRequest<MatchResponse>('/journals/match', {
     method: 'POST',
     body: JSON.stringify(payload),
   }, true);
+}
+
+export interface ListProjectsParams {
+  search?: string;
+  status?: string;
+  sort?: 'updatedAt' | 'createdAt' | 'title' | string;
+  order?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}
+
+export async function listProjects(params: ListProjectsParams = {}): Promise<ProjectListResponse> {
+  const query = new URLSearchParams();
+  if (params.search && params.search.trim()) query.set('search', params.search.trim());
+  if (params.status && params.status !== 'All' && params.status !== 'all') query.set('status', params.status);
+  if (params.sort) query.set('sort', params.sort);
+  if (params.order) query.set('order', params.order);
+  if (params.page) query.set('page', String(params.page));
+  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+
+  const qs = query.toString();
+  const endpoint = `/projects${qs ? `?${qs}` : ''}`;
+  return apiRequest<ProjectListResponse>(endpoint, { method: 'GET' }, true);
 }
 
 export async function createProject(payload: CreateProjectPayload): Promise<Project> {
@@ -180,11 +269,58 @@ export async function createProject(payload: CreateProjectPayload): Promise<Proj
 }
 
 export async function getProjects(): Promise<Project[]> {
-  return apiRequest<Project[]>('/projects', { method: 'GET' }, true);
+  const res = await listProjects({ pageSize: 100 });
+  return res.items || [];
 }
 
 export async function getProjectById(projectId: string | number): Promise<Project> {
   return apiRequest<Project>(`/projects/${projectId}`, { method: 'GET' }, true);
+}
+
+export async function updateProject(projectId: string | number, payload: PatchProjectPayload): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function deleteProject(projectId: string | number): Promise<void> {
+  return apiRequest<void>(`/projects/${projectId}`, { method: 'DELETE' }, true);
+}
+
+export async function setTargetJournal(projectId: string | number, journalId: string | number): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}/target-journal/${journalId}`, { method: 'PUT' }, true);
+}
+
+export async function clearTargetJournal(projectId: string | number): Promise<Project> {
+  return apiRequest<Project>(`/projects/${projectId}/target-journal`, { method: 'DELETE' }, true);
+}
+
+export async function uploadManuscript(projectId: string | number, file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiRequest<any>(`/projects/${projectId}/manuscript`, {
+    method: 'POST',
+    body: formData,
+  }, true);
+}
+
+export async function deleteManuscript(projectId: string | number): Promise<void> {
+  return apiRequest<void>(`/projects/${projectId}/manuscript`, { method: 'DELETE' }, true);
+}
+
+export async function getProjectActivity(
+  projectId: string | number,
+  limit = 20,
+  before?: number
+): Promise<ProjectActivityEvent[]> {
+  const qs = before ? `?limit=${limit}&before=${before}` : `?limit=${limit}`;
+  return apiRequest<ProjectActivityEvent[]>(`/projects/${projectId}/activity${qs}`, { method: 'GET' }, true);
+}
+
+export async function getRecentActivity(limit = 20, before?: number): Promise<ProjectActivityEvent[]> {
+  const qs = before ? `?limit=${limit}&before=${before}` : `?limit=${limit}`;
+  return apiRequest<ProjectActivityEvent[]>(`/activity/recent${qs}`, { method: 'GET' }, true);
 }
 
 export async function shortlistJournal(
@@ -212,4 +348,136 @@ export async function unshortlistJournal(
 export async function getProjectShortlist(projectId: string | number): Promise<Journal[]> {
   return apiRequest<Journal[]>(`/projects/${projectId}/shortlist`, { method: 'GET' }, true);
 }
+
+// ===========================================================================
+// Guideline Extraction & Rule Sets
+// ===========================================================================
+
+export async function getGuidelinesSchema(): Promise<any> {
+  return apiRequest<any>('/guidelines/schema', { method: 'GET' }, true);
+}
+
+export async function createGuidelineExtraction(payload: CreateExtractionPayload): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>('/guidelines/extractions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function getGuidelineExtractions(page = 1, pageSize = 20): Promise<{ items: GuidelineExtractionJob[]; total: number; page: number; pageSize: number }> {
+  return apiRequest<{ items: GuidelineExtractionJob[]; total: number; page: number; pageSize: number }>(
+    `/guidelines/extractions?page=${page}&pageSize=${pageSize}`,
+    { method: 'GET' },
+    true
+  );
+}
+
+export async function getGuidelineExtraction(id: string | number): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>(`/guidelines/extractions/${id}`, { method: 'GET' }, true);
+}
+
+export async function cancelGuidelineExtraction(id: string | number): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>(`/guidelines/extractions/${id}/cancel`, { method: 'POST' }, true);
+}
+
+export async function retryGuidelineExtraction(id: string | number): Promise<GuidelineExtractionJob> {
+  return apiRequest<GuidelineExtractionJob>(`/guidelines/extractions/${id}/retry`, { method: 'POST' }, true);
+}
+
+export async function deleteGuidelineExtraction(id: string | number): Promise<void> {
+  return apiRequest<void>(`/guidelines/extractions/${id}`, { method: 'DELETE' }, true);
+}
+
+export async function confirmGuidelineExtraction(
+  id: string | number,
+  payload: ConfirmExtractionPayload
+): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/extractions/${id}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function createGuidelineRuleSet(payload: CreateRuleSetPayload): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>('/guidelines/rule-sets', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function getGuidelineRuleSets(params?: {
+  journalId?: string;
+  isActive?: boolean;
+  origin?: string;
+  scope?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: GuidelineRuleSet[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params?.journalId) query.set('journalId', params.journalId);
+  if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
+  if (params?.origin) query.set('origin', params.origin);
+  if (params?.scope) query.set('scope', params.scope);
+  if (params?.search) query.set('search', params.search);
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+
+  const qs = query.toString();
+  return apiRequest<{ items: GuidelineRuleSet[]; total: number; page: number; pageSize: number }>(
+    `/guidelines/rule-sets${qs ? `?${qs}` : ''}`,
+    { method: 'GET' },
+    true
+  );
+}
+
+export async function getGuidelineRuleSet(id: string | number): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}`, { method: 'GET' }, true);
+}
+
+export async function patchGuidelineRuleSet(
+  id: string | number,
+  payload: PatchRuleSetPayload
+): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }, true);
+}
+
+export async function getGuidelineRuleSetVersions(id: string | number): Promise<GuidelineRuleSet[]> {
+  return apiRequest<GuidelineRuleSet[]>(`/guidelines/rule-sets/${id}/versions`, { method: 'GET' }, true);
+}
+
+export async function activateGuidelineRuleSet(id: string | number): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}/activate`, { method: 'POST' }, true);
+}
+
+export async function copyGuidelineRuleSet(id: string | number): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/guidelines/rule-sets/${id}/copy`, { method: 'POST' }, true);
+}
+
+export async function deleteGuidelineRuleSet(id: string | number): Promise<void> {
+  return apiRequest<void>(`/guidelines/rule-sets/${id}`, { method: 'DELETE' }, true);
+}
+
+export async function getJournalEffectiveGuidelines(journalId: string | number): Promise<EffectiveRulesResponse> {
+  return apiRequest<EffectiveRulesResponse>(`/journals/${journalId}/guidelines`, { method: 'GET' }, true);
+}
+
+export async function linkProjectGuidelineRule(
+  projectId: string | number,
+  ruleSetId: string | number
+): Promise<GuidelineRuleSet> {
+  return apiRequest<GuidelineRuleSet>(`/projects/${projectId}/guidelines/${ruleSetId}`, { method: 'PUT' }, true);
+}
+
+export async function unlinkProjectGuidelineRule(projectId: string | number): Promise<void> {
+  return apiRequest<void>(`/projects/${projectId}/guidelines`, { method: 'DELETE' }, true);
+}
+
+export async function getProjectEffectiveGuidelines(projectId: string | number): Promise<EffectiveRulesResponse> {
+  return apiRequest<EffectiveRulesResponse>(`/projects/${projectId}/guidelines`, { method: 'GET' }, true);
+}
+
 

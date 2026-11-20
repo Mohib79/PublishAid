@@ -17,21 +17,54 @@ export function getAvatarInitials(fullName: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export type ProjectStatus = 'Draft' | 'Formatting' | 'Needs review' | 'Ready to submit';
+export type ProjectStatus = 'Draft' | 'Formatting' | 'Needs review' | 'Ready to submit' | 'Submitted' | string;
+
+export interface ManuscriptMetadata {
+  fileName: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  available: boolean;
+  expiresAt: string;
+}
+
+export interface TargetJournalMetadata {
+  id: string;
+  title: string;
+  publisher: string;
+}
+
+export interface ProjectActivityEvent {
+  id: string;
+  projectId?: string | null;
+  projectTitle?: string | null;
+  eventType: string;
+  details: Record<string, any>;
+  journalTitle?: string | null;
+  createdAt: string;
+}
 
 export interface Project {
   id: string;
   title: string;
-  abstract: string;
+  abstract?: string | null;
   keywords: string[];
   field: string;
+  researchField?: string | null;
   targetJournalId?: string;
   targetJournalTitle?: string;
+  targetJournal?: TargetJournalMetadata | null;
+  guidelineRuleSet?: { id: string; name: string; version: number; source: string } | null;
   status: ProjectStatus;
+  createdAt?: string;
   updatedAt: string;
-  wordCount: number;
+  wordCount?: number;
   fileName?: string;
   fileSize?: string;
+  shortlistedCount?: number;
+  hasManuscript?: boolean;
+  manuscript?: ManuscriptMetadata | null;
+  counts?: { conversions: number; complianceReports: number };
+  recentActivity?: ProjectActivityEvent[];
 }
 
 export interface Journal {
@@ -74,8 +107,125 @@ export interface MatchResponse {
 
 export interface CreateProjectPayload {
   title: string;
+  researchField?: string;
+  field?: string;
   abstract?: string;
   keywords?: string[];
+}
+
+export interface PatchProjectPayload {
+  title?: string;
+  researchField?: string;
+  field?: string;
+  abstract?: string | null;
+  keywords?: string[];
+  status?: string;
+}
+
+export interface ProjectListResponse {
+  items: Project[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface GuidelineExtractionWarning {
+  code: string;
+  message: string;
+  path?: string | null;
+}
+
+export interface GuidelineExtractionError {
+  code: string;
+  message: string;
+}
+
+export interface GuidelineFieldProvenance {
+  confidence: 'high' | 'medium' | 'low';
+  evidence?: string | null;
+  articleType?: string | null;
+  edited?: boolean;
+}
+
+export interface GuidelineExtractionDraft {
+  schemaVersion: number;
+  rules: Record<string, any>;
+  fields?: Record<string, GuidelineFieldProvenance>;
+  alternatives?: Record<string, Array<{ value: any; evidence?: string | null; articleType?: string | null }>>;
+}
+
+export interface GuidelineExtractionJob {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  step: 'queued' | 'fetching' | 'cleaning' | 'extracting' | 'validating' | 'done';
+  cached: boolean;
+  sourceType: 'url' | 'text';
+  sourceUrl?: string | null;
+  finalUrl?: string | null;
+  journalId?: string | null;
+  projectId?: string | null;
+  source?: {
+    title?: string | null;
+    wordCount: number;
+    language: string;
+    truncated: boolean;
+  } | null;
+  warnings: GuidelineExtractionWarning[];
+  draft?: GuidelineExtractionDraft | null;
+  error?: GuidelineExtractionError | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface GuidelineRuleSet {
+  id: string;
+  name: string;
+  journalId?: string | null;
+  journalTitle?: string | null;
+  origin: 'extracted' | 'manual' | 'seed';
+  version: number;
+  isActive: boolean;
+  isSystem: boolean;
+  schemaVersion: number;
+  rules: Record<string, any>;
+  provenance?: Record<string, any>;
+  sourceUrl?: string | null;
+  lineageId: string;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface CreateExtractionPayload {
+  sourceType: 'url' | 'text';
+  url?: string;
+  text?: string;
+  journalId?: string | null;
+  projectId?: string | null;
+}
+
+export interface ConfirmExtractionPayload {
+  rules: Record<string, any>;
+  name?: string | null;
+  journalId?: string | null;
+  projectId?: string | null;
+  acknowledgedFields?: string[];
+}
+
+export interface CreateRuleSetPayload {
+  name: string;
+  rules: Record<string, any>;
+  journalId?: string | null;
+  sourceUrl?: string | null;
+}
+
+export interface PatchRuleSetPayload {
+  name?: string | null;
+  rules?: Record<string, any> | null;
+}
+
+export interface EffectiveRulesResponse {
+  ruleSet: GuidelineRuleSet | null;
+  source: 'project' | 'user' | 'system' | null;
 }
 
 export interface GuidelineRule {
@@ -155,4 +305,56 @@ export interface ActivityItem {
   subtitle: string;
   timestamp: string;
   type: 'compliance' | 'journal' | 'conversion' | 'project';
+}
+
+export interface CompareCompleteness {
+  available: number;
+  total: number;
+}
+
+export interface CompareProjectContext {
+  isShortlisted: boolean;
+  isTarget: boolean;
+  rawSimilarity?: number | null;
+  matchScore?: number | null;
+}
+
+export interface CompareJournalHeader {
+  id: string;
+  title: string;
+  publisher: string;
+  homepageUrl?: string | null;
+  metadataUpdatedAt?: string | null;
+  completeness: CompareCompleteness;
+  projectContext?: CompareProjectContext | null;
+}
+
+export interface CompareGroup {
+  key: string;
+  label: string;
+}
+
+export interface CompareCellValue {
+  value: any;
+  isBest: boolean;
+}
+
+export interface CompareRow {
+  key: string;
+  label: string;
+  group: string;
+  type: 'text' | 'enum' | 'number' | 'integer' | 'percent' | 'currency' | 'link' | 'longtext' | 'list' | string;
+  direction: 'higher' | 'lower' | 'none' | string;
+  alwaysShow: boolean;
+  note: string;
+  allSame: boolean;
+  values: CompareCellValue[];
+}
+
+export interface JournalCompareResponse {
+  journals: CompareJournalHeader[];
+  groups: CompareGroup[];
+  rows: CompareRow[];
+  notes: string[];
+  generatedAt: string;
 }

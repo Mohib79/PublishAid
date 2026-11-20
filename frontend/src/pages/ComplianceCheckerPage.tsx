@@ -14,6 +14,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 
 export const ComplianceCheckerPage: React.FC = () => {
   const navigate = useNavigate();
@@ -86,37 +87,25 @@ RECOMMENDED ACTIONABLE FIXES:
       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
           <div className="md:col-span-5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-              Project
-            </label>
-            <select
+            <CustomDropdown
+              label="Project"
               value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="w-full px-3.5 h-[42px] rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:border-[#0F766E] outline-none cursor-pointer"
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.title}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedProject(val)}
+              options={projects.map((p) => ({ value: p.title, label: p.title }))}
+              searchable={projects.length > 5}
+              size="md"
+            />
           </div>
 
           <div className="md:col-span-4">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-              Target journal
-            </label>
-            <select
+            <CustomDropdown
+              label="Target journal"
               value={selectedJournal}
-              onChange={(e) => setSelectedJournal(e.target.value)}
-              className="w-full px-3.5 h-[42px] rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:border-[#0F766E] outline-none cursor-pointer"
-            >
-              {journals.map((j) => (
-                <option key={j.id} value={j.title}>
-                  {j.title}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedJournal(val)}
+              options={journals.map((j) => ({ value: j.title, label: j.title }))}
+              searchable={journals.length > 5}
+              size="md"
+            />
           </div>
 
           <div className="md:col-span-3">

@@ -1,0 +1,40 @@
+{
+  "journalTitle": "ACM Transactions on Graphics",
+  "sourceUrl": "https://tog.acm.org/authors.cfm",
+  "dateAccessed": "2026-11-11",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 12000,
+      "maxAbstractWords": 250,
+      "wordLimitExcludes": ["references", "appendices"],
+      "keywords": {
+        "min": 3,
+        "max": 8
+      },
+      "requiredStatements": [
+        "conflictOfInterest"
+      ]
+    },
+    "citation": {
+      "style": "ACM",
+      "numbered": true
+    },
+    "layout": {
+      "columns": "double",
+      "pageSize": "Letter",
+      "fontSizePt": 9.0,
+      "lineSpacing": 1.0
+    },
+    "figures": {
+      "minDpi": 300,
+      "formats": ["pdf", "png"]
+    },
+    "submission": {
+      "fileFormats": ["pdf", "tex"],
+      "reviewType": "double_blind"
+    }
+  }
+}
+

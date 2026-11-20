@@ -1,0 +1,46 @@
+{
+  "name": "Springer LNCS Guidelines",
+  "journalTitle": "Lecture Notes in Computer Science",
+  "journalIssn": "0302-9743",
+  "sourceUrl": "https://www.springer.com/gp/computer-science/lncs/conference-proceedings-guidelines",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 10000,
+      "maxAbstractWords": 250,
+      "wordLimitExcludes": ["references"],
+      "requiredSections": [
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusion",
+        "References"
+      ],
+      "requiredStatements": [
+        "ethics"
+      ]
+    },
+    "citation": {
+      "style": "Springer",
+      "numbered": true
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "A4",
+      "fontSizePt": 10.0,
+      "lineSpacing": 1.0,
+      "maxPages": 15
+    },
+    "figures": {
+      "minDpi": 300,
+      "formats": ["eps", "pdf", "png"]
+    },
+    "submission": {
+      "fileFormats": ["pdf", "tex", "docx"],
+      "reviewType": "single_blind",
+      "coverLetterRequired": false
+    }
+  }
+}

@@ -15,6 +15,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { CustomDropdown } from '../components/common/CustomDropdown';
 
 export const ManuscriptTransformationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -121,23 +122,22 @@ export const ManuscriptTransformationPage: React.FC = () => {
 
             {/* Target Journal Selection */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                  Target journal
-                </label>
-                <span className="text-[10px] font-bold text-[#0F766E] bg-[#DCFCE7] px-2 py-0.5 rounded-full border border-[#BBF7D0]">
-                  Template ready
-                </span>
-              </div>
-              <select
+              <CustomDropdown
+                label="Target journal"
+                badge={
+                  <span className="text-[10px] font-bold text-[#0F766E] bg-[#DCFCE7] px-2 py-0.5 rounded-full border border-[#BBF7D0]">
+                    Template ready
+                  </span>
+                }
                 value={targetJournal}
-                onChange={(e) => setTargetJournal(e.target.value)}
-                className="w-full px-3.5 h-[42px] rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:border-[#0F766E] outline-none cursor-pointer"
-              >
-                <option value="Urban Climate & Society">Urban Climate & Society (Atlas Academic)</option>
-                <option value="Journal of Sustainable Systems">Journal of Sustainable Systems (Meridian Science)</option>
-                <option value="Environmental Research Advances">Environmental Research Advances (Northstar Press)</option>
-              </select>
+                onChange={(val) => setTargetJournal(val)}
+                options={[
+                  { value: 'Urban Climate & Society', label: 'Urban Climate & Society', sublabel: 'Atlas Academic' },
+                  { value: 'Journal of Sustainable Systems', label: 'Journal of Sustainable Systems', sublabel: 'Meridian Science' },
+                  { value: 'Environmental Research Advances', label: 'Environmental Research Advances', sublabel: 'Northstar Press' },
+                ]}
+                size="md"
+              />
             </div>
 
             {/* Checkbox Options */}

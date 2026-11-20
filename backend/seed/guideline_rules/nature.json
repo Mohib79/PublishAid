@@ -1,0 +1,49 @@
+{
+  "name": "Nature Author Guidelines",
+  "journalTitle": "Nature",
+  "journalIssn": "0028-0836",
+  "sourceUrl": "https://www.nature.com/nature/for-authors",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 4500,
+      "maxAbstractWords": 200,
+      "wordLimitExcludes": ["references", "acknowledgements"],
+      "requiredSections": [
+        "Introduction",
+        "Results",
+        "Discussion",
+        "Methods",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability",
+        "ethics",
+        "authorContributions"
+      ]
+    },
+    "citation": {
+      "style": "Nature",
+      "numbered": true,
+      "maxReferences": 50
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "A4",
+      "fontSizePt": 12.0,
+      "lineSpacing": 2.0
+    },
+    "figures": {
+      "maxFigures": 6,
+      "minDpi": 300,
+      "formats": ["pdf", "eps", "tiff"]
+    },
+    "submission": {
+      "fileFormats": ["docx", "pdf", "tex"],
+      "reviewType": "single_blind",
+      "coverLetterRequired": true
+    }
+  }
+}

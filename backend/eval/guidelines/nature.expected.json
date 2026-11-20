@@ -1,0 +1,42 @@
+{
+  "journalTitle": "Nature",
+  "sourceUrl": "https://www.nature.com/nature/for-authors",
+  "dateAccessed": "2026-11-11",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 4500,
+      "maxAbstractWords": 200,
+      "wordLimitExcludes": ["references", "acknowledgements"],
+      "requiredStatements": [
+        "dataAvailability",
+        "ethics",
+        "conflictOfInterest",
+        "authorContributions"
+      ]
+    },
+    "citation": {
+      "style": "Nature",
+      "numbered": true,
+      "maxReferences": 50
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "A4",
+      "fontSizePt": 12.0,
+      "lineSpacing": 2.0
+    },
+    "figures": {
+      "maxFigures": 6,
+      "minDpi": 300,
+      "formats": ["pdf", "eps", "tiff"]
+    },
+    "submission": {
+      "fileFormats": ["docx", "pdf", "tex"],
+      "reviewType": "single_blind",
+      "coverLetterRequired": true
+    }
+  }
+}
+

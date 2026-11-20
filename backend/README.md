@@ -114,6 +114,7 @@ The following refinements resolve inconsistencies found in the FYP report data d
 | **D5** | `Project.current_file_path` always present | Nullable `current_file_path` + added `file_deleted_at` | Section 5.4.3 states manuscripts are purged after the session for privacy. |
 | **D6** | Status and role fields were unconstrained strings | Constrained with `sa.Enum(..., native_enum=False, create_constraint=True)` | Generates clean SQL CHECK constraints to prevent invalid states. |
 | **D7** | No uniqueness on `ProjectJournal` | Added `UNIQUE (project_id, journal_id)` and partial unique index `(project_id) WHERE is_selected = true` | Prevents duplicate journal bookmarks; ensures at most 1 selected journal per project. |
+| **D8** | Activity / audit logs not in 9-table schema | Added `activity_logs` table (`user_id`, `project_id`, `project_title`, `event_type`, `details JSONB`) | Section 5.1.1 promises audit logging for workspace management, manuscript operations, and dashboard history. |
 
 ---
 
@@ -214,7 +215,88 @@ Results on the 20-case benchmark (`backend/eval/results_2026-10-19.md`):
 
 ---
 
-## 8. Troubleshooting
+## 8. Journal Comparison & Catalog Browse API
+
+### Overview
+PublishAid provides side-by-side comparison for 2 to 4 candidate journals driven by a centralized server metric registry (`app/services/comparison/registry.py`). Missing metrics strictly resolve to `null` (displayed as `N/A`) rather than being fabricated or estimated, and no composite ranking score is generated.
+
+### Endpoints
+* **`GET /journals/compare`** (and `/api/journals/compare`):
+  * Query parameters:
+    * `ids` (required): comma-separated positive integer journal IDs (2 to 4 unique IDs after deduplication; max 20 raw tokens).
+    * `projectId` (optional): attaches project-specific `matchScore` (calibrated via `to_match_score`), `isShortlisted`, and `isTarget` context if owned by the caller (`404` otherwise).
+    * `include` (optional): supports `requirements` to batch-resolve active user or built-in submission guidelines via `resolve_effective_rules_for_journals` in a single SQL query.
+  * Validation & Error Responses:
+    * `422` for `< 2` or `> 4` unique IDs, malformed IDs, `> 20` raw IDs, or unsupported `include` values.
+    * `404` with `{ "detail": "Journal not found", "missingIds": [...] }` if any requested journal ID does not exist.
+  * Routing Note: Declared before `GET /journals/{journal_id}` in `app/api/journals.py` to avoid path parameter shadowing.
+* **`GET /journals`** and **`GET /journals/browse`**:
+  * Returns paginated `JournalBrowseResponse` (`items`, `total`, `page`, `limit`, `totalPages`, `categories`, `publishers`).
+  * Supports filter and pagination parameter aliases: `subjectCategory` (`category`), `openAccess` (`open_access_type`), `sort` (`sort_by`, including camelCase field names), `order` (`sort_order`), and `pageSize` (`limit`).
+
+---
+
+## 9. Guideline Extraction & Rule Sets Engine
+
+### Overview
+PublishAid extracts, normalizes, validates, and manages publisher author guidelines into machine-readable formatting rules. The pipeline transforms arbitrary web URLs or pasted guidelines text into a typed, grounded JSON specification conforming to **Rules Schema v1**.
+
+### Architecture & Safety Guardrails
+1. **SSRF Guard (`fetcher.py`)**: All URL fetching enforces strict network validation:
+   - Prohibits RFC 1918 private IPv4/IPv6 ranges (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, link-local, multicast).
+   - Only `http` and `https` schemes permitted.
+   - Follows at most 3 redirects, re-verifying DNS and IP safety on every hop.
+   - 2MB download ceiling and 10s socket timeout.
+2. **Text Extraction & Sanitization (`cleaner.py` & `chunker.py`)**:
+   - Strips cookie notices, navigation banners, privacy policies, advertisements, and prompt injection traps using Trafilatura and BeautifulSoup.
+   - Chunks text into bounded overlapping segments with position offsets for verbatim quote attribution.
+3. **Structured Extraction (`gemini_client.py` & `extractor.py`)**:
+   - Driven by Gemini 2.5 Flash with structured JSON output enforcing Schema v1.
+   - Neutralized prompting prevents prompt injection from malicious webpage content.
+   - Extracts 4 categories: `documentStructure`, `citations`, `figuresAndTables`, and `submissionStyle`.
+4. **Verbatim Grounding & Validation (`grounding.py` & `schema.py`)**:
+   - Every extracted field requires a verbatim evidence quote matching cleaned source text.
+   - Low-confidence matches (<0.85) require explicit acknowledgment before activation.
+5. **Quota & Cache Protection (`runner.py`)**:
+   - Max 2 concurrent extractions per user; max 20 extractions/day per user.
+   - SHA-256 deduplication avoids re-extracting identical text within a 30-day window.
+
+### API Endpoints
+* **`GET /guidelines/schema`**: Returns the JSON Schema specification for Rules v1.
+* **`POST /guidelines/extractions`**: Initiates asynchronous extraction (`sourceType`: `"url"` | `"text"`).
+* **`GET /guidelines/extractions`**: Lists user's extractions with pagination.
+* **`GET /guidelines/extractions/{id}`**: Polling endpoint for live progress and extraction draft.
+* **`POST /guidelines/extractions/{id}/cancel`**: Cancels an in-flight job.
+* **`POST /guidelines/extractions/{id}/confirm`**: Confirms draft and persists as an active `GuidelineRule` version.
+* **`GET /guidelines/rule-sets`**: Lists rule sets with filtering (`search`, `journalId`, `isActive`, `origin`).
+* **`GET /guidelines/rule-sets/{id}`**: Inspects a specific rule set.
+* **`PATCH /guidelines/rule-sets/{id}`**: Updates a rule set (creates a new active version in the lineage if rules changed).
+* **`GET /guidelines/rule-sets/{id}/versions`**: Lists all version history within a lineage.
+* **`POST /guidelines/rule-sets/{id}/activate`**: Re-activates an older version in a lineage.
+* **`POST /guidelines/rule-sets/{id}/copy`**: Duplicates a rule set into a new lineage.
+* **`DELETE /guidelines/rule-sets/{id}`**: Deletes a custom rule set (system seeds are protected).
+* **`GET /journals/{journalId}/guidelines`**: Resolves the effective rule set for a journal.
+* **`PUT /projects/{projectId}/guidelines/{ruleSetId}`**: Links a project to a guideline rule set.
+* **`DELETE /projects/{projectId}/guidelines`**: Unlinks active guideline rule set from a project.
+* **`GET /projects/{projectId}/guidelines`**: Resolves the effective rule set for a project.
+
+### Seed Rule Sets & Evaluation
+PublishAid includes 5 hand-verified seed rule sets (`backend/seed/guideline_rules/`):
+* `ieee_tpami.json`
+* `nature.json`
+* `elsevier_neurocomputing.json`
+* `springer_lncs.json`
+* `acm_tog.json`
+
+To re-seed or evaluate live extraction against the gold standard:
+```bash
+python -m scripts.seed_guideline_rules
+python -m scripts.eval_guidelines
+```
+
+---
+
+## 10. Troubleshooting
 
 * **Port 5434 in use:**
   If a local PostgreSQL server runs on port 5432 or 5433, Docker maps to host port 5434 (`5434:5432`). Ensure `DATABASE_URL` uses `localhost:5434`.

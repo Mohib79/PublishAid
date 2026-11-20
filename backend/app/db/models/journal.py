@@ -38,7 +38,7 @@ class Journal(Base):
     )
     aims_and_scope: Mapped[str] = mapped_column(Text, nullable=False)
     open_access_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    review_weeks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    review_weeks: Mapped[float | None] = mapped_column(Float, nullable=True)
     acceptance_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     embedding = mapped_column(Vector(768), nullable=True)
     embedding_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
