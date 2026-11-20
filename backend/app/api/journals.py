@@ -395,7 +395,7 @@ def match_journals(
 
     start_time = time.perf_counter()
 
-    # 1. Build SPECTER-aligned query text
+    # 1. Build natural-language query text for transformer + lexical terms for BM25
     query_text = build_query_text(
         title=req.title,
         abstract=req.abstract,
@@ -405,10 +405,11 @@ def match_journals(
     # 2. Compute query embedding vector
     query_vector = embedder.embed_query(query_text)
 
-    # 3. Perform pgvector cosine distance search
+    # 3. Perform vectorized NumPy cosine similarity + BM25 hybrid ranking
     matched_records = search_matching_journals(
         query_vector=query_vector,
         db=db,
+        query_text=query_text,
         limit=req.limit,
     )
 
@@ -421,13 +422,15 @@ def match_journals(
 
     # 5. Format results
     results: list[MatchJournalItemOut] = []
-    for journal, raw_sim, score, tag in matched_records:
-        is_short = journal.journal_id in shortlisted_journal_ids
-        item_dict = JournalItemOut.model_validate(journal).model_dump(by_alias=True)
+    for match in matched_records:
+        is_short = match.journal.journal_id in shortlisted_journal_ids
+        item_dict = JournalItemOut.model_validate(match.journal).model_dump(by_alias=True)
         item_dict.update({
-            "matchScore": score,
-            "rawSimilarity": round(raw_sim, 4),
-            "matchTag": tag,
+            "matchScore": match.match_score,
+            "rawSimilarity": round(match.raw_cosine, 4),
+            "bm25Score": round(match.bm25_score, 4),
+            "hybridScore": round(match.hybrid_score, 4),
+            "matchTag": match.match_tag,
             "isShortlisted": is_short,
         })
         results.append(MatchJournalItemOut.model_validate(item_dict))

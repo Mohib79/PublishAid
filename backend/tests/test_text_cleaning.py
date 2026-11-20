@@ -1,9 +1,9 @@
-from app.core.text_cleaning import clean_text, DEFAULT_STOPWORDS
-from app.core.embeddings_config import build_journal_text
+from app.core.embeddings_config import build_journal_lexical_text, build_journal_text
+from app.core.text_cleaning import clean_text
 from app.services.matching import build_query_text
 
 
-def test_clean_text_removes_stopwords():
+def test_clean_text_removes_stopwords_for_bm25():
     raw = "A survey of the latest deep learning algorithms for object detection."
     cleaned = clean_text(raw, remove_stopwords=True)
     assert "survey" in cleaned
@@ -12,7 +12,6 @@ def test_clean_text_removes_stopwords():
     assert "algorithms" in cleaned
     assert "object" in cleaned
     assert "detection" in cleaned
-    # stopwords removed:
     assert "a" not in cleaned.split()
     assert "of" not in cleaned.split()
     assert "the" not in cleaned.split()
@@ -29,20 +28,32 @@ def test_clean_text_strips_punctuation_and_urls():
     assert "transformer" in cleaned
 
 
-def test_build_journal_text_with_cleaning():
-    title = "Journal of Computer Vision"
-    scope = "This journal covers topics in image processing and computer vision."
-    res = build_journal_text(title, scope, clean=True)
-    assert "journal computer vision" in res
-    assert "covers topics image processing computer vision" in res
+def test_build_journal_text_preserves_natural_prose():
+    title = "  Journal of   Computer Vision  "
+    scope = "This journal covers topics in\n image processing and computer vision (e.g., SLAM)."
+    res = build_journal_text(title, scope)
+    assert res == (
+        "Journal of Computer Vision. "
+        "This journal covers topics in image processing and computer vision (e.g., SLAM)."
+    )
 
 
-def test_build_query_text_with_cleaning():
-    title = "A Study on Quantum Computing"
+def test_build_query_text_preserves_natural_prose():
+    title = "  A Study on Quantum Computing  "
     abstract = "We present an overview of quantum gate error mitigation."
     keywords = ["Quantum", "Error Mitigation", "and Algorithms"]
-    query = build_query_text(title=title, abstract=abstract, keywords=keywords, clean=True)
-    assert "study quantum computing" in query
-    assert "present overview quantum gate error mitigation" in query
-    assert "Keywords: quantum, error mitigation, algorithms" in query
+    query = build_query_text(title=title, abstract=abstract, keywords=keywords)
+    assert query == (
+        "A Study on Quantum Computing. "
+        "We present an overview of quantum gate error mitigation. "
+        "Keywords: Quantum, Error Mitigation, and Algorithms"
+    )
 
+
+def test_build_journal_lexical_text_includes_subject():
+    lexical = build_journal_lexical_text(
+        title="Computer Networks",
+        aims_and_scope="Publishes research on SDN and routing.",
+        subject_category="Networking",
+    )
+    assert lexical == "Computer Networks Networking Publishes research on SDN and routing."

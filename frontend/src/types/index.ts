@@ -84,6 +84,8 @@ export interface Journal {
   matchScore?: number; // e.g. 96
   matchTag?: string | null; // e.g. "Best fit"
   rawSimilarity?: number | null;
+  bm25Score?: number | null;
+  hybridScore?: number | null;
 }
 
 export interface MatchRequest {

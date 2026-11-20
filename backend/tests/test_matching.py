@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.core.embeddings_config import EMBEDDING_DIMENSION
 from app.core.security import create_access_token
 from app.db.models.journal import Journal
@@ -173,6 +174,8 @@ def test_match_journals_ranking_and_scores(client, auth_header, vector_journals)
     assert top["matchScore"] == 100
     assert top["matchTag"] == "Best fit"
     assert top["rawSimilarity"] >= 0.99
+    assert "bm25Score" in top
+    assert "hybridScore" in top
     assert top["isShortlisted"] is False
 
     # j3 should be ranked above j2
@@ -298,7 +301,7 @@ def test_match_journals_real_embedder(db_session, auth_header, vector_journals):
         assert res.status_code == 200
         data = res.json()
         assert len(data["results"]) > 0
-        assert data["meta"]["model"] == "allenai-specter"
+        assert data["meta"]["model"] == settings.EMBEDDING_MODEL
         assert "tookMs" in data["meta"]
         # Match score must be between 0 and 100
         assert 0 <= data["results"][0]["matchScore"] <= 100

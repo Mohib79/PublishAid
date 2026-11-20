@@ -492,7 +492,7 @@ export const JournalFinderPage: React.FC = () => {
                   Analyzing manuscript against indexed scopes...
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  Computing SPECTER semantic embeddings and ranking journals across our curated catalog.
+                  Computing asymmetric semantic embeddings and BM25 keyword scores across our curated catalog.
                 </p>
               </div>
             </div>
@@ -613,7 +613,13 @@ export const JournalFinderPage: React.FC = () => {
                               className="w-13 h-13 rounded-full border-2 border-[#0F766E] bg-[#CCFBF1]/30 flex flex-col items-center justify-center shrink-0"
                               title={
                                 journal.rawSimilarity != null
-                                  ? `SPECTER Cosine Similarity: ${journal.rawSimilarity.toFixed(4)}`
+                                  ? [
+                                      `Cosine Similarity: ${journal.rawSimilarity.toFixed(4)}`,
+                                      journal.bm25Score != null ? `BM25 Score: ${journal.bm25Score.toFixed(4)}` : null,
+                                      journal.hybridScore != null ? `Hybrid Score: ${journal.hybridScore.toFixed(4)}` : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' | ')
                                   : undefined
                               }
                             >

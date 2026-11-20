@@ -615,18 +615,18 @@ def test_jc_prj_01_to_07_project_context_and_isolation(client, db_session, users
     )
     assert ctx1["isShortlisted"] is True
     assert ctx1["isTarget"] is True
-    assert ctx1["matchScore"] == to_match_score(0.865) == 63
+    assert ctx1["matchScore"] == to_match_score(0.865) == 96
 
     assert ctx2["isShortlisted"] is True
     assert ctx2["isTarget"] is False
-    assert ctx2["matchScore"] == to_match_score(0.81) == 39
+    assert ctx2["matchScore"] == to_match_score(0.81) == 90
 
     assert ctx3["isShortlisted"] is False
     assert ctx3["isTarget"] is False
     assert ctx3["matchScore"] is None
 
     match_row = next(r for r in b1["rows"] if r["key"] == "matchScore")
-    assert [v["value"] for v in match_row["values"]] == [63, 39, None]
+    assert [v["value"] for v in match_row["values"]] == [96, 90, None]
     assert [v["isBest"] for v in match_row["values"]] == [True, False, False]
 
     # JC-PRJ-06 & 07: Nonexistent or foreign projectId returns 404

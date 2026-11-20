@@ -1,27 +1,41 @@
+"""Hybrid journal matching service combining vectorized cosine similarity and Okapi BM25."""
+
+from __future__ import annotations
+
 import logging
+from dataclasses import dataclass
 from typing import Optional
+
+import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.text_cleaning import clean_text
+from app.core.config import settings
+from app.core.embeddings_config import build_journal_lexical_text, normalize_whitespace
 from app.db.models.journal import Journal
+from app.services.bm25 import BM25Index
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class JournalMatchResult:
+    journal: Journal
+    raw_cosine: float
+    bm25_score: float
+    hybrid_score: float
+    match_score: int
+    match_tag: Optional[str] = None
 
 
 def build_query_text(
     title: Optional[str] = None,
     abstract: Optional[str] = None,
     keywords: Optional[list[str]] = None,
-    clean: bool = True,
 ) -> str:
-    """Combines user input title, abstract, and keywords into a cleaned, stopword-filtered query string."""
-    clean_title = (title or "").strip()
-    clean_abstract = (abstract or "").strip()
-
-    if clean:
-        clean_title = clean_text(clean_title, remove_stopwords=True)
-        clean_abstract = clean_text(clean_abstract, remove_stopwords=True)
+    """Combines user input title, abstract, and keywords into natural-language prose for embedding."""
+    clean_title = normalize_whitespace(title)
+    clean_abstract = normalize_whitespace(abstract)
 
     parts: list[str] = []
     if clean_title:
@@ -30,27 +44,29 @@ def build_query_text(
         parts.append(clean_abstract)
 
     if keywords:
-        clean_kw = [
-            clean_text(k, remove_stopwords=True) if clean else k.strip()
-            for k in keywords
-            if k and k.strip()
-        ]
-        clean_kw = [k for k in clean_kw if k]
+        clean_kw = [normalize_whitespace(k) for k in keywords if normalize_whitespace(k)]
         if clean_kw:
             parts.append("Keywords: " + ", ".join(clean_kw))
 
-    return ". ".join(parts)
+    out = ""
+    for part in parts:
+        if not out:
+            out = part
+        elif out.endswith((".", "!", "?")):
+            out = f"{out} {part}"
+        else:
+            out = f"{out}. {part}"
+    return out
 
 
 def to_match_score(similarity: float) -> int:
     """
-    Calibrates cosine similarity into a user-facing percentage score (0 to 100)
-    using Min-Max normalization against the empirical SPECTER baseline.
-    Maps [0.72, 0.95] to [0%, 100%].
+    Calibrates a standalone cosine similarity score into a 0-100 percentage score
+    using empirical bounds for all-mpnet-base-v2 embeddings [0.0, 0.90].
     """
     sim = float(similarity)
-    t_min = 0.72
-    t_max = 0.95
+    t_min = 0.0
+    t_max = 0.90
 
     if sim <= t_min:
         return 0
@@ -61,32 +77,138 @@ def to_match_score(similarity: float) -> int:
     return int(round(scaled))
 
 
+def normalize_cosine_for_hybrid(
+    cosine_scores: np.ndarray,
+    min_span: float = 0.25,
+) -> np.ndarray:
+    """
+    Min-max normalizes cosine similarity across the candidate pool into [0.0, 1.0]
+    with a minimum span floor so tiny score gaps in small pools are not over-amplified.
+    """
+    if cosine_scores.size == 0:
+        return np.zeros(0, dtype=np.float64)
+    if cosine_scores.size == 1:
+        return np.clip(cosine_scores, 0.0, 1.0)
+    c_max = float(cosine_scores.max())
+    c_min = float(cosine_scores.min())
+    span = max(c_max - c_min, min_span)
+    floor = c_max - span
+    return np.clip((cosine_scores - floor) / span, 0.0, 1.0)
+
+
+def compute_relative_match_scores(
+    hybrid_scores: np.ndarray,
+    cosine_scores: np.ndarray,
+) -> list[int]:
+    """
+    Computes pool-relative 0-100 display scores from hybrid and cosine scores so UI badges
+    reflect relative ranking across the entire journal catalog rather than a rigid cutoff.
+    """
+    n = int(len(hybrid_scores))
+    if n == 0:
+        return []
+    if n == 1:
+        cos0 = float(cosine_scores[0])
+        return [100] if cos0 >= 0.99 else [to_match_score(cos0)]
+
+    min_s = float(hybrid_scores.min())
+    max_s = float(hybrid_scores.max())
+    if max_s <= min_s or max_s <= 0.35:
+        return [
+            100 if float(c) >= 0.99 else to_match_score(float(c))
+            for c in cosine_scores
+        ]
+
+    low_target = max(10.0, min(55.0, round(min_s * 100.0)))
+    high_target = min(99.0, max(round(max_s * 100.0), 88.0))
+    if high_target <= low_target:
+        high_target = min(99.0, low_target + 10.0)
+
+    scores: list[int] = []
+    for h, c in zip(hybrid_scores, cosine_scores):
+        if float(c) >= 0.99:
+            scores.append(100)
+            continue
+        ratio = (float(h) - min_s) / (max_s - min_s)
+        scaled = low_target + ratio * (high_target - low_target)
+        scores.append(max(0, min(99, int(round(scaled)))))
+    return scores
+
+
+def compute_vectorized_cosine_similarity(
+    doc_matrix: np.ndarray,
+    query_vector: np.ndarray,
+) -> np.ndarray:
+    """Computes cosine similarity across all pre-computed journal vectors via vectorized NumPy math."""
+    if doc_matrix.size == 0:
+        return np.zeros(0, dtype=np.float64)
+
+    q_norm = float(np.linalg.norm(query_vector))
+    if q_norm == 0.0:
+        return np.zeros(doc_matrix.shape[0], dtype=np.float64)
+
+    doc_norms = np.linalg.norm(doc_matrix, axis=1)
+    denom = np.maximum(doc_norms * q_norm, 1e-12)
+    return (doc_matrix @ query_vector) / denom
+
+
 def search_matching_journals(
     query_vector: list[float],
     db: Session,
+    query_text: str = "",
     limit: int = 10,
-) -> list[tuple[Journal, float, int, Optional[str]]]:
+    cosine_weight: Optional[float] = None,
+    bm25_weight: Optional[float] = None,
+) -> list[JournalMatchResult]:
     """
-    Executes cosine distance search in pgvector over indexed journals.
-    Returns list of tuples: (journal, raw_similarity, match_score, match_tag)
+    Ranks all embedded journals in the database using vectorized NumPy cosine similarity
+    combined with normalized Okapi BM25 lexical scores (no LLM API calls).
     """
-    distance = Journal.embedding.cosine_distance(query_vector)
+    journals = db.execute(
+        select(Journal).where(Journal.embedding.is_not(None))
+    ).scalars().all()
 
-    stmt = (
-        select(Journal, (1 - distance).label("similarity"))
-        .where(Journal.embedding.is_not(None))
-        .order_by(distance.asc())
-        .limit(limit)
+    if not journals:
+        return []
+
+    w_cos = settings.HYBRID_COSINE_WEIGHT if cosine_weight is None else cosine_weight
+    w_bm25 = settings.HYBRID_BM25_WEIGHT if bm25_weight is None else bm25_weight
+
+    doc_matrix = np.asarray([list(j.embedding) for j in journals], dtype=np.float64)
+    q_vec = np.asarray(query_vector, dtype=np.float64)
+
+    cosine_scores = compute_vectorized_cosine_similarity(doc_matrix, q_vec)
+
+    if query_text and query_text.strip() and w_bm25 > 0.0:
+        lexical_docs = [
+            build_journal_lexical_text(j.journal_title, j.aims_and_scope, j.subject_category)
+            for j in journals
+        ]
+        bm25_scores = BM25Index(lexical_docs).normalized_score(query_text)
+        norm_cosine_scores = normalize_cosine_for_hybrid(cosine_scores)
+    else:
+        bm25_scores = np.zeros(len(journals), dtype=np.float64)
+        norm_cosine_scores = cosine_scores
+
+    hybrid_scores = (w_cos * norm_cosine_scores) + (w_bm25 * bm25_scores)
+    match_scores = compute_relative_match_scores(hybrid_scores, cosine_scores)
+
+    sorted_indices = sorted(
+        range(len(journals)),
+        key=lambda idx: (-float(hybrid_scores[idx]), -float(cosine_scores[idx]), journals[idx].journal_id),
     )
 
-    rows = db.execute(stmt).all()
-    results: list[tuple[Journal, float, int, Optional[str]]] = []
-
-    for rank, row in enumerate(rows, start=1):
-        journal: Journal = row[0]
-        raw_sim = float(row[1]) if row[1] is not None else 0.0
-        score = to_match_score(raw_sim)
-        tag = "Best fit" if rank == 1 else None
-        results.append((journal, raw_sim, score, tag))
+    results: list[JournalMatchResult] = []
+    for rank, idx in enumerate(sorted_indices[:limit], start=1):
+        results.append(
+            JournalMatchResult(
+                journal=journals[idx],
+                raw_cosine=float(cosine_scores[idx]),
+                bm25_score=float(bm25_scores[idx]),
+                hybrid_score=float(hybrid_scores[idx]),
+                match_score=match_scores[idx],
+                match_tag="Best fit" if rank == 1 else None,
+            )
+        )
 
     return results

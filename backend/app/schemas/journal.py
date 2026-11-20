@@ -62,6 +62,8 @@ class JournalItemOut(BaseModel):
 class MatchJournalItemOut(JournalItemOut):
     match_score: int
     raw_similarity: float
+    bm25_score: Optional[float] = None
+    hybrid_score: Optional[float] = None
     match_tag: Optional[str] = None
     is_shortlisted: bool = False
 

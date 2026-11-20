@@ -1,21 +1,52 @@
-from app.core.text_cleaning import clean_text
+"""Configuration and text formatting helpers for journal and query embeddings."""
 
-DEFAULT_EMBEDDING_MODEL = "allenai-specter"
+import re
+
+DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 EMBEDDING_DIMENSION = 768
 
+BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
 
-def build_journal_text(title: str, aims_and_scope: str, clean: bool = True) -> str:
-    """Standardized text format for embedding journal scope."""
-    raw_title = (title or "").strip()
-    raw_scope = (aims_and_scope or "").strip()
 
-    if clean:
-        c_title = clean_text(raw_title, remove_stopwords=True)
-        c_scope = clean_text(raw_scope, remove_stopwords=True)
-        if c_title and c_scope:
-            return f"{c_title}. {c_scope}"
-        return c_title or c_scope
+def get_query_prefix(model_name: str) -> str:
+    """Returns asymmetric retrieval instruction prefix when required by the model."""
+    lowered = (model_name or "").strip().lower()
+    if "bge" in lowered and (
+        "v1.5" in lowered
+        or "bge-base-en" in lowered
+        or "bge-large-en" in lowered
+        or "bge-small-en" in lowered
+    ):
+        return BGE_QUERY_INSTRUCTION
+    return ""
 
-    if raw_title and raw_scope:
-        return f"{raw_title}. {raw_scope}"
-    return raw_title or raw_scope
+
+def normalize_whitespace(text: str | None) -> str:
+    """Collapses repeated whitespace and newlines while keeping natural punctuation and casing."""
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def build_journal_text(title: str, aims_and_scope: str) -> str:
+    """Formats natural-language journal scope text for dense transformer embedding."""
+    clean_title = normalize_whitespace(title)
+    clean_scope = normalize_whitespace(aims_and_scope)
+
+    if clean_title and clean_scope:
+        return f"{clean_title}. {clean_scope}"
+    return clean_title or clean_scope
+
+
+def build_journal_lexical_text(
+    title: str,
+    aims_and_scope: str,
+    subject_category: str | None = None,
+) -> str:
+    """Combines title, subject category, and full aims & scope for BM25 lexical indexing."""
+    parts = [
+        normalize_whitespace(title),
+        normalize_whitespace(subject_category),
+        normalize_whitespace(aims_and_scope),
+    ]
+    return " ".join(part for part in parts if part)
