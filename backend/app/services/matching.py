@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.text_cleaning import clean_text
 from app.db.models.journal import Journal
 
 logger = logging.getLogger(__name__)
@@ -12,10 +13,15 @@ def build_query_text(
     title: Optional[str] = None,
     abstract: Optional[str] = None,
     keywords: Optional[list[str]] = None,
+    clean: bool = True,
 ) -> str:
-    """Combines user input title, abstract, and keywords into a single SPECTER-ready query string."""
+    """Combines user input title, abstract, and keywords into a cleaned, stopword-filtered query string."""
     clean_title = (title or "").strip()
     clean_abstract = (abstract or "").strip()
+
+    if clean:
+        clean_title = clean_text(clean_title, remove_stopwords=True)
+        clean_abstract = clean_text(clean_abstract, remove_stopwords=True)
 
     parts: list[str] = []
     if clean_title:
@@ -24,7 +30,12 @@ def build_query_text(
         parts.append(clean_abstract)
 
     if keywords:
-        clean_kw = [k.strip() for k in keywords if k and k.strip()]
+        clean_kw = [
+            clean_text(k, remove_stopwords=True) if clean else k.strip()
+            for k in keywords
+            if k and k.strip()
+        ]
+        clean_kw = [k for k in clean_kw if k]
         if clean_kw:
             parts.append("Keywords: " + ", ".join(clean_kw))
 
