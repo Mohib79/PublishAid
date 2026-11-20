@@ -53,15 +53,6 @@ export const JournalFinderPage: React.FC = () => {
   );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
-  const loadSamplePaper = () => {
-    setTitle('Deep Residual Learning for Image Recognition');
-    setAbstract(
-      'Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. We explicitly reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions. Comprehensive empirical evidence shows that these residual networks are easier to optimize and gain accuracy from considerably increased depth.'
-    );
-    setKeywords('deep learning, neural networks, computer vision, residual representations');
-    setValidationError(null);
-  };
-
   const handleClearForm = () => {
     setTitle('');
     setAbstract('');
@@ -341,15 +332,6 @@ export const JournalFinderPage: React.FC = () => {
                   Paper title
                 </label>
                 <div className="flex items-center gap-2.5">
-                  {!title && !abstract && (
-                    <button
-                      type="button"
-                      onClick={loadSamplePaper}
-                      className="text-[11px] font-semibold text-[#0F766E] hover:underline cursor-pointer"
-                    >
-                      + Load CS sample
-                    </button>
-                  )}
                   {(title || abstract || keywords) && (
                     <button
                       type="button"
