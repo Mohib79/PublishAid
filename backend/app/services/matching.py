@@ -101,8 +101,9 @@ def compute_relative_match_scores(
     cosine_scores: np.ndarray,
 ) -> list[int]:
     """
-    Computes pool-relative 0-100 display scores from hybrid and cosine scores so UI badges
-    reflect relative ranking across the entire journal catalog rather than a rigid cutoff.
+    Computes 0-100 display scores that preserve hybrid ranking order while anchoring
+    the top percentage to the pool's empirical raw cosine similarity range [0.05, 0.44]
+    for all-mpnet-base-v2 asymmetric retrieval.
     """
     n = int(len(hybrid_scores))
     if n == 0:
@@ -111,18 +112,27 @@ def compute_relative_match_scores(
         cos0 = float(cosine_scores[0])
         return [100] if cos0 >= 0.99 else [to_match_score(cos0)]
 
+    max_cos = float(cosine_scores.max())
+    if max_cos <= 0.0:
+        return [0] * n
+
+    cos_floor = 0.05
+    cos_ceil = 0.44
+    high_target = min(96.0, max(5.0, ((max_cos - cos_floor) / (cos_ceil - cos_floor)) * 95.0))
+
     min_s = float(hybrid_scores.min())
     max_s = float(hybrid_scores.max())
-    if max_s <= min_s or max_s <= 0.35:
+    if max_s <= min_s:
         return [
-            100 if float(c) >= 0.99 else to_match_score(float(c))
+            100 if float(c) >= 0.99 else min(96, max(0, int(round(high_target))))
             for c in cosine_scores
         ]
 
-    low_target = max(10.0, min(55.0, round(min_s * 100.0)))
-    high_target = min(99.0, max(round(max_s * 100.0), 88.0))
-    if high_target <= low_target:
-        high_target = min(99.0, low_target + 10.0)
+    min_cos = max(cos_floor, float(cosine_scores.min()))
+    low_target = min(
+        high_target * 0.4,
+        max(5.0, ((min_cos - cos_floor) / (cos_ceil - cos_floor)) * 95.0),
+    )
 
     scores: list[int] = []
     for h, c in zip(hybrid_scores, cosine_scores):
@@ -131,7 +141,7 @@ def compute_relative_match_scores(
             continue
         ratio = (float(h) - min_s) / (max_s - min_s)
         scaled = low_target + ratio * (high_target - low_target)
-        scores.append(max(0, min(99, int(round(scaled)))))
+        scores.append(max(0, min(96, int(round(scaled)))))
     return scores
 
 

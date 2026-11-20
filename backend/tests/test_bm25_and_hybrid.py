@@ -8,6 +8,7 @@ from app.db.models.journal import Journal
 from app.services.bm25 import BM25Index, tokenize_for_bm25
 from app.services.embedding import JournalEmbedder
 from app.services.matching import (
+    compute_relative_match_scores,
     compute_vectorized_cosine_similarity,
     normalize_cosine_for_hybrid,
     search_matching_journals,
@@ -160,3 +161,32 @@ def test_normalize_cosine_for_hybrid_handles_wide_and_narrow_pools():
     assert math.isclose(float(norm_narrow[2]), 1.0)
     assert float(norm_narrow[0]) > 0.80  # Not stretched down to 0.0 when gap is tiny
     assert norm_narrow[0] < norm_narrow[1] < norm_narrow[2]
+
+
+def test_compute_relative_match_scores_anchors_to_cosine_strength():
+    # Strong in-domain match (max_cos = 0.38) -> 75..88%
+    strong_hyb = np.array([0.92, 0.65, 0.30], dtype=np.float64)
+    strong_cos = np.array([0.38, 0.25, 0.08], dtype=np.float64)
+    strong_scores = compute_relative_match_scores(strong_hyb, strong_cos)
+    assert 75 <= strong_scores[0] <= 88
+    assert strong_scores[0] > strong_scores[1] > strong_scores[2]
+
+    # Cross-domain / partial overlap (max_cos = 0.29) -> 50..65%
+    cross_hyb = np.array([0.90, 0.60, 0.20], dtype=np.float64)
+    cross_cos = np.array([0.29, 0.20, 0.05], dtype=np.float64)
+    cross_scores = compute_relative_match_scores(cross_hyb, cross_cos)
+    assert 50 <= cross_scores[0] <= 65
+    assert cross_scores[0] > cross_scores[1] > cross_scores[2]
+
+    # Truly off-topic query (max_cos = 0.12) -> < 25%
+    off_hyb = np.array([0.85, 0.50, 0.10], dtype=np.float64)
+    off_cos = np.array([0.12, 0.06, -0.02], dtype=np.float64)
+    off_scores = compute_relative_match_scores(off_hyb, off_cos)
+    assert off_scores[0] < 25
+    assert off_scores[0] > off_scores[1] > off_scores[2]
+
+    # Synthetic unit vector >= 0.99 maps to 100
+    synth_hyb = np.array([0.95, 0.50], dtype=np.float64)
+    synth_cos = np.array([1.0, 0.40], dtype=np.float64)
+    synth_scores = compute_relative_match_scores(synth_hyb, synth_cos)
+    assert synth_scores[0] == 100
