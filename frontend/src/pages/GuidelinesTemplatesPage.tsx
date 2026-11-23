@@ -45,11 +45,13 @@ import {
   getGuidelineRuleSetVersions,
   activateGuidelineRuleSet,
   copyGuidelineRuleSet,
+  createGuidelineRuleSet,
   patchGuidelineRuleSet,
   deleteGuidelineRuleSet,
   retryGuidelineExtraction,
   deleteGuidelineExtraction,
   linkProjectGuidelineRule,
+  getJournalEffectiveGuidelines,
   browseJournals
 } from '../lib/api';
 import {
@@ -92,7 +94,10 @@ export const GuidelinesTemplatesPage: React.FC = () => {
   // EXTRACTION WORKFLOW STATE
   // ==========================================
   const [extractionSubStep, setExtractionSubStep] = useState<'input' | 'processing' | 'review'>('input');
-  const [inputMode, setInputMode] = useState<'url' | 'text'>('url');
+  const [inputMode, setInputMode] = useState<'catalog' | 'url' | 'text'>('catalog');
+  const [catalogPublisherFilter, setCatalogPublisherFilter] = useState<string>('all');
+  const [isLoadingCatalogRules, setIsLoadingCatalogRules] = useState<boolean>(false);
+  const [loadedCatalogRuleSet, setLoadedCatalogRuleSet] = useState<GuidelineRuleSet | null>(null);
   const [guidelinesUrl, setGuidelinesUrl] = useState('');
   const [guidelinesText, setGuidelinesText] = useState('');
   const [selectedJournalId, setSelectedJournalId] = useState<string>('');
@@ -172,7 +177,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
   const loadRuleSets = async () => {
     setIsLoadingRuleSets(true);
     try {
-      const res = await getGuidelineRuleSets({ pageSize: 50 });
+      const res = await getGuidelineRuleSets({ pageSize: 100 });
       setRuleSets(Array.isArray(res) ? res : (res?.items || []));
     } catch (err) {
       console.error('Failed to load rule sets:', err);
@@ -313,6 +318,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
 
   const resumeExtractionReview = (extraction: GuidelineExtractionJob) => {
     setEditingRuleSetId(null);
+    setLoadedCatalogRuleSet(null);
     setCurrentJob(extraction);
     if (extraction.draft?.rules) {
       setReviewRules(JSON.parse(JSON.stringify(extraction.draft.rules)));
@@ -320,7 +326,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
     if (extraction.draft?.fields) {
       setReviewFields(JSON.parse(JSON.stringify(extraction.draft.fields)));
     }
-    const journalObj = journals.find(j => j.id === extraction.journalId);
+    const journalObj = (catalogJournals.length > 0 ? catalogJournals : journals).find(j => j.id === extraction.journalId);
     const defaultName = journalObj ? `${journalObj.title} Rules` : 'Extracted Rules';
     setRuleSetName(defaultName);
     setExtractionSubStep('review');
@@ -329,14 +335,101 @@ export const GuidelinesTemplatesPage: React.FC = () => {
 
   const handleEditRuleSet = (ruleSet: GuidelineRuleSet) => {
     setCurrentJob(null);
-    setEditingRuleSetId(ruleSet.id);
+    const isSeed = ruleSet.isSystem || ruleSet.origin === 'seed';
+    if (isSeed) {
+      setEditingRuleSetId(null);
+      setLoadedCatalogRuleSet(ruleSet);
+      setRuleSetName(`${ruleSet.name} (Custom)`);
+    } else {
+      setEditingRuleSetId(ruleSet.id);
+      setLoadedCatalogRuleSet(null);
+      setRuleSetName(ruleSet.name);
+    }
     setReviewRules(JSON.parse(JSON.stringify(ruleSet.rules || { schemaVersion: 1 })));
     setReviewFields({});
     setReviewedAllFlags(false);
-    setRuleSetName(ruleSet.name);
     setReviewCategory('documentStructure');
     setExtractionSubStep('review');
     setActiveTab('extract');
+  };
+
+  const syncTemplateStateFromRules = (journalTitle: string, rulesObj: Record<string, any>) => {
+    if (journalTitle) setPublisher(journalTitle);
+    const cols = rulesObj?.layout?.columns;
+    if (cols === 'double') setColumnLayout('Double column');
+    else if (cols === 'single') setColumnLayout('Single column');
+    const cStyle = rulesObj?.citation?.style;
+    if (cStyle) setReferencingStyle(cStyle);
+    const dClass = rulesObj?.layout?.documentClass;
+    if (dClass) setDocumentClass(dClass);
+  };
+
+  const handleLoadCatalogJournalGuidelines = async (journalIdToLoad?: string) => {
+    const targetId = journalIdToLoad || selectedJournalId;
+    setJobError(null);
+    if (!targetId) {
+      setJobError('Please select a journal from our 50-journal catalog first.');
+      return;
+    }
+
+    setIsLoadingCatalogRules(true);
+    try {
+      const allJournals = catalogJournals.length > 0 ? catalogJournals : journals;
+      const journalObj = allJournals.find((j) => String(j.id) === String(targetId));
+
+      let foundRuleSet: GuidelineRuleSet | null = null;
+      try {
+        const eff = await getJournalEffectiveGuidelines(targetId);
+        if (eff && eff.ruleSet) {
+          foundRuleSet = eff.ruleSet;
+        }
+      } catch {
+        // Fallback to local ruleSets list if endpoint fails
+      }
+
+      if (!foundRuleSet && Array.isArray(ruleSets)) {
+        foundRuleSet =
+          ruleSets.find((rs) => String(rs.journalId) === String(targetId)) ||
+          (journalObj
+            ? ruleSets.find(
+                (rs) =>
+                  rs.journalTitle?.toLowerCase() === journalObj.title.toLowerCase() ||
+                  rs.name.toLowerCase().includes(journalObj.title.toLowerCase())
+              )
+            : null) ||
+          null;
+      }
+
+      if (!foundRuleSet) {
+        setJobError(
+          'No pre-extracted rules found for this journal yet. You can switch to Publisher URL or Paste Guidelines Text to extract them now.'
+        );
+        return;
+      }
+
+      setCurrentJob(null);
+      const isSeed = foundRuleSet.isSystem || foundRuleSet.origin === 'seed';
+      if (isSeed) {
+        setEditingRuleSetId(null);
+        setLoadedCatalogRuleSet(foundRuleSet);
+      } else {
+        setEditingRuleSetId(foundRuleSet.id);
+        setLoadedCatalogRuleSet(foundRuleSet);
+      }
+
+      const rulesCopy = JSON.parse(JSON.stringify(foundRuleSet.rules || { schemaVersion: 1 }));
+      setReviewRules(rulesCopy);
+      setReviewFields({});
+      setReviewedAllFlags(false);
+      setRuleSetName(foundRuleSet.name);
+      setReviewCategory('documentStructure');
+      syncTemplateStateFromRules(journalObj?.title || foundRuleSet.journalTitle || foundRuleSet.name, rulesCopy);
+      setExtractionSubStep('review');
+    } catch (err: any) {
+      setJobError(err.message || 'Failed to load pre-extracted guidelines for the selected journal.');
+    } finally {
+      setIsLoadingCatalogRules(false);
+    }
   };
 
   // ==========================================
@@ -407,7 +500,7 @@ export const GuidelinesTemplatesPage: React.FC = () => {
   );
 
   const handleConfirmAndSaveRules = async () => {
-    if ((!currentJob && !editingRuleSetId) || !reviewRules) return;
+    if ((!currentJob && !editingRuleSetId && !loadedCatalogRuleSet) || !reviewRules) return;
     if (lowConfidenceItems.length > 0 && !reviewedAllFlags) {
       alert('Please check the confirmation box acknowledging you have reviewed flagged low-confidence fields.');
       return;
@@ -424,6 +517,9 @@ export const GuidelinesTemplatesPage: React.FC = () => {
           name: ruleSetName.trim(),
           rules: reviewRules,
         });
+        if (selectedProjectId) {
+          await linkProjectGuidelineRule(selectedProjectId, updatedRuleSet.id);
+        }
         setReviewSuccessMsg(`Rule Set "${updatedRuleSet.name}" (v${updatedRuleSet.version}) updated successfully!`);
         addActivity('Guideline rule set updated', updatedRuleSet.name, 'journal');
         loadRuleSets();
@@ -431,6 +527,32 @@ export const GuidelinesTemplatesPage: React.FC = () => {
         setTimeout(() => {
           setReviewSuccessMsg(null);
           setEditingRuleSetId(null);
+          setLoadedCatalogRuleSet(null);
+          setExtractionSubStep('input');
+          setActiveTab('rulesets');
+        }, 1200);
+      } else if (loadedCatalogRuleSet) {
+        const customName =
+          ruleSetName.trim() === loadedCatalogRuleSet.name
+            ? `${loadedCatalogRuleSet.name} (Custom)`
+            : ruleSetName.trim();
+        const createdRuleSet = await createGuidelineRuleSet({
+          name: customName,
+          rules: reviewRules,
+          journalId: selectedJournalId || loadedCatalogRuleSet.journalId || undefined,
+        });
+        if (selectedProjectId) {
+          await linkProjectGuidelineRule(selectedProjectId, createdRuleSet.id);
+        }
+        setReviewSuccessMsg(
+          `Saved "${createdRuleSet.name}" to your library${selectedProjectId ? ' and linked to your project' : ''}!`
+        );
+        addActivity('Guideline rule set saved', createdRuleSet.name, 'journal');
+        loadRuleSets();
+
+        setTimeout(() => {
+          setReviewSuccessMsg(null);
+          setLoadedCatalogRuleSet(null);
           setExtractionSubStep('input');
           setActiveTab('rulesets');
         }, 1200);
@@ -728,165 +850,345 @@ Funding, Conflict of Interest, and Data Availability.
           </div>
 
           {/* SUB-STEP 1: INPUT FORM */}
-          {extractionSubStep === 'input' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Form card */}
-              <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-5">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Extract Publisher Guidelines</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Provide the official Instructions for Authors page URL or paste the raw text. PublishAid extracts layout, font, citation, and submission specifications.
-                  </p>
-                </div>
+          {extractionSubStep === 'input' && (() => {
+            const allAvailableJournals = catalogJournals.length > 0 ? catalogJournals : journals;
+            const publisherCategories = ['all', 'IEEE', 'Elsevier', 'Springer', 'ACM', 'Wiley', 'Oxford University Press'];
+            const filteredCatalogJournals = allAvailableJournals.filter((j) => {
+              if (catalogPublisherFilter === 'all') return true;
+              return (j.publisher || '').toLowerCase().includes(catalogPublisherFilter.toLowerCase());
+            });
+            const selectedCatalogJournal = allAvailableJournals.find((j) => String(j.id) === String(selectedJournalId));
 
-                {jobError && (
-                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    <span>{jobError}</span>
-                  </div>
-                )}
-
-                {/* Input Mode Toggle */}
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-700">Source Mode:</span>
-                  <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
-                    <button
-                      onClick={() => setInputMode('url')}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
-                        inputMode === 'url' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
-                      }`}
-                    >
-                      <Globe className="w-3.5 h-3.5 text-[#0F766E]" />
-                      Publisher URL
-                    </button>
-                    <button
-                      onClick={() => setInputMode('text')}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
-                        inputMode === 'text' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
-                      }`}
-                    >
-                      <Clipboard className="w-3.5 h-3.5 text-blue-600" />
-                      Paste Guidelines Text
-                    </button>
-                  </div>
-                </div>
-
-                {/* Mode: URL */}
-                {inputMode === 'url' && (
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Form card */}
+                <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Guidelines Webpage URL <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Globe className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="url"
-                        placeholder="https://www.nature.com/nature/for-authors/formatting-guide"
-                        value={guidelinesUrl}
-                        onChange={(e) => setGuidelinesUrl(e.target.value)}
-                        className="w-full pl-10 pr-3.5 h-[42px] rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] outline-none"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Safe extraction with SSRF security guard, anti-crawl filtering, and multi-chunk analysis.
+                    <h2 className="text-lg font-bold text-slate-900">Select or Extract Journal Guidelines</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Pick from our 50 pre-extracted catalog journals for instant formatting rules, or extract from any publisher URL or pasted text.
                     </p>
                   </div>
-                )}
 
-                {/* Mode: Text */}
-                {inputMode === 'text' && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Guidelines Text <span className="text-rose-500">*</span>
-                      </label>
-                      <span className="text-[11px] text-slate-400">
-                        {guidelinesText.length} / 100,000 characters
-                      </span>
+                  {jobError && (
+                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>{jobError}</span>
                     </div>
-                    <textarea
-                      rows={7}
-                      placeholder="Paste author instructions, formatting limits, reference instructions, and submission requirements here..."
-                      value={guidelinesText}
-                      maxLength={100000}
-                      onChange={(e) => setGuidelinesText(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono bg-white focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] outline-none resize-none leading-relaxed"
-                    />
-                  </div>
-                )}
+                  )}
 
-                {/* Target Metadata Selectors */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                  <div>
-                    <CustomDropdown
-                      label="Associated Journal (Optional)"
-                      value={selectedJournalId}
-                      onChange={(val) => setSelectedJournalId(val)}
-                      placeholder="-- None (Standalone Rule Set) --"
-                      options={[
-                        { value: '', label: '-- None (Standalone Rule Set) --' },
-                        ...(catalogJournals.length > 0 ? catalogJournals : journals).map((j) => ({
-                          value: j.id,
-                          label: `${j.title} ${j.publisher ? `(${j.publisher})` : ''}`,
-                        })),
-                      ]}
-                      searchable={(catalogJournals.length > 0 ? catalogJournals : journals).length > 5}
-                      size="md"
-                    />
+                  {/* Input Mode Toggle */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-bold text-slate-700">Source Mode:</span>
+                    <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-lg border border-slate-200 gap-1">
+                      <button
+                        onClick={() => {
+                          setInputMode('catalog');
+                          setJobError(null);
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                          inputMode === 'catalog' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
+                        }`}
+                      >
+                        <Building2 className="w-3.5 h-3.5 text-[#0F766E]" />
+                        Browse 50 Catalog Journals (Instant)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setInputMode('url');
+                          setJobError(null);
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                          inputMode === 'url' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
+                        }`}
+                      >
+                        <Globe className="w-3.5 h-3.5 text-[#0F766E]" />
+                        Fetch via Publisher URL
+                      </button>
+                      <button
+                        onClick={() => {
+                          setInputMode('text');
+                          setJobError(null);
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                          inputMode === 'text' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
+                        }`}
+                      >
+                        <Clipboard className="w-3.5 h-3.5 text-blue-600" />
+                        Paste Guidelines Text
+                      </button>
+                    </div>
                   </div>
 
-                  <div>
-                    <CustomDropdown
-                      label="Link Directly to Project (Optional)"
-                      value={selectedProjectId}
-                      onChange={(val) => setSelectedProjectId(val)}
-                      placeholder="-- Do Not Link Immediately --"
-                      options={[
-                        { value: '', label: '-- Do Not Link Immediately --' },
-                        ...projects.map((p) => ({ value: p.id, label: p.title })),
-                      ]}
-                      searchable={projects.length > 5}
-                      size="md"
-                    />
-                  </div>
+                  {/* Mode: Catalog (50 Pre-Extracted Journals) */}
+                  {inputMode === 'catalog' && (
+                    <div className="space-y-4">
+                      {/* Quick Publisher Filter Pills */}
+                      <div>
+                        <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">
+                          Filter Catalog by Publisher:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {publisherCategories.map((pub) => (
+                            <button
+                              key={pub}
+                              type="button"
+                              onClick={() => setCatalogPublisherFilter(pub)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                                catalogPublisherFilter === pub
+                                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {pub === 'all' ? `All Publishers (${allAvailableJournals.length})` : pub}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Searchable Journal Selector */}
+                      <div>
+                        <CustomDropdown
+                          label="Select Journal from Catalog (50 Pre-Extracted Venues)"
+                          value={selectedJournalId}
+                          onChange={(val) => {
+                            setSelectedJournalId(val);
+                            setJobError(null);
+                          }}
+                          placeholder="-- Search or Select a Journal by Title or Publisher --"
+                          options={[
+                            { value: '', label: '-- Search or Select a Journal by Title or Publisher --' },
+                            ...filteredCatalogJournals.map((j) => ({
+                              value: String(j.id),
+                              label: `${j.title} (${j.publisher}${j.quartile ? ` · ${j.quartile}` : ''})`,
+                            })),
+                          ]}
+                          searchable
+                          size="md"
+                        />
+                      </div>
+
+                      {/* Selected Journal Quick Preview Card */}
+                      {selectedCatalogJournal && (
+                        <div className="p-4 rounded-xl bg-teal-50/60 border border-teal-200/80 space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-sm font-bold text-slate-900">{selectedCatalogJournal.title}</h4>
+                                {selectedCatalogJournal.quartile && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                    {selectedCatalogJournal.quartile}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-800 flex items-center gap-1">
+                                  <ShieldCheck className="w-3 h-3" /> Pre-Extracted Guidelines Ready
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-0.5">
+                                {selectedCatalogJournal.publisher}
+                                {selectedCatalogJournal.issn ? ` · ISSN ${selectedCatalogJournal.issn}` : ''}
+                                {selectedCatalogJournal.subjectCategory ? ` · ${selectedCatalogJournal.subjectCategory}` : ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+                            <div className="bg-white/80 p-2 rounded-lg border border-teal-100">
+                              <span className="text-slate-400 block text-[10px]">CiteScore</span>
+                              <span className="font-bold text-slate-800">{selectedCatalogJournal.citeScore ?? 'N/A'}</span>
+                            </div>
+                            <div className="bg-white/80 p-2 rounded-lg border border-teal-100">
+                              <span className="text-slate-400 block text-[10px]">Impact Factor</span>
+                              <span className="font-bold text-slate-800">{selectedCatalogJournal.impactFactor ?? 'N/A'}</span>
+                            </div>
+                            <div className="bg-white/80 p-2 rounded-lg border border-teal-100">
+                              <span className="text-slate-400 block text-[10px]">Review Speed</span>
+                              <span className="font-bold text-slate-800">
+                                {selectedCatalogJournal.reviewWeeks != null ? `${selectedCatalogJournal.reviewWeeks} wks` : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="bg-white/80 p-2 rounded-lg border border-teal-100">
+                              <span className="text-slate-400 block text-[10px]">Acceptance Rate</span>
+                              <span className="font-bold text-slate-800">
+                                {selectedCatalogJournal.acceptanceRate != null ? `${selectedCatalogJournal.acceptanceRate}%` : 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Link to Project Option */}
+                      <div className="pt-2 border-t border-slate-100">
+                        <CustomDropdown
+                          label="Link Directly to Project (Optional)"
+                          value={selectedProjectId}
+                          onChange={(val) => setSelectedProjectId(val)}
+                          placeholder="-- Do Not Link Immediately --"
+                          options={[
+                            { value: '', label: '-- Do Not Link Immediately --' },
+                            ...projects.map((p) => ({ value: p.id, label: p.title })),
+                          ]}
+                          searchable={projects.length > 5}
+                          size="md"
+                        />
+                      </div>
+
+                      {/* Load Action & Fallback Helper */}
+                      <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="text-xs text-slate-500">
+                          Journal not in our 50-venue catalog?{' '}
+                          <button
+                            type="button"
+                            onClick={() => setInputMode('url')}
+                            className="text-[#0F766E] font-bold hover:underline"
+                          >
+                            Fetch via URL
+                          </button>{' '}
+                          or{' '}
+                          <button
+                            type="button"
+                            onClick={() => setInputMode('text')}
+                            className="text-[#0F766E] font-bold hover:underline"
+                          >
+                            Paste Guidelines
+                          </button>
+                        </div>
+                        <Button
+                          onClick={() => handleLoadCatalogJournalGuidelines()}
+                          disabled={!selectedJournalId || isLoadingCatalogRules}
+                          leftIcon={
+                            isLoadingCatalogRules ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <FileCheck className="w-4 h-4" />
+                            )
+                          }
+                        >
+                          {isLoadingCatalogRules ? 'Loading Guidelines...' : 'Load Pre-Extracted Guidelines'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode: URL */}
+                  {inputMode === 'url' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Guidelines Webpage URL <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Globe className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="url"
+                          placeholder="https://www.nature.com/nature/for-authors/formatting-guide"
+                          value={guidelinesUrl}
+                          onChange={(e) => setGuidelinesUrl(e.target.value)}
+                          className="w-full pl-10 pr-3.5 h-[42px] rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] outline-none"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Safe extraction with SSRF security guard, anti-crawl filtering, and multi-chunk analysis.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Mode: Text */}
+                  {inputMode === 'text' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Guidelines Text <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[11px] text-slate-400">
+                          {guidelinesText.length} / 100,000 characters
+                        </span>
+                      </div>
+                      <textarea
+                        rows={7}
+                        placeholder="Paste author instructions, formatting limits, reference instructions, and submission requirements here..."
+                        value={guidelinesText}
+                        maxLength={100000}
+                        onChange={(e) => setGuidelinesText(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono bg-white focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] outline-none resize-none leading-relaxed"
+                      />
+                    </div>
+                  )}
+
+                  {/* Target Metadata Selectors & Submit Action for URL / Text extraction */}
+                  {inputMode !== 'catalog' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                        <div>
+                          <CustomDropdown
+                            label="Associated Journal (Optional)"
+                            value={selectedJournalId}
+                            onChange={(val) => setSelectedJournalId(val)}
+                            placeholder="-- None (Standalone Rule Set) --"
+                            options={[
+                              { value: '', label: '-- None (Standalone Rule Set) --' },
+                              ...allAvailableJournals.map((j) => ({
+                                value: j.id,
+                                label: `${j.title} ${j.publisher ? `(${j.publisher})` : ''}`,
+                              })),
+                            ]}
+                            searchable={allAvailableJournals.length > 5}
+                            size="md"
+                          />
+                        </div>
+
+                        <div>
+                          <CustomDropdown
+                            label="Link Directly to Project (Optional)"
+                            value={selectedProjectId}
+                            onChange={(val) => setSelectedProjectId(val)}
+                            placeholder="-- Do Not Link Immediately --"
+                            options={[
+                              { value: '', label: '-- Do Not Link Immediately --' },
+                              ...projects.map((p) => ({ value: p.id, label: p.title })),
+                            ]}
+                            searchable={projects.length > 5}
+                            size="md"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-3 flex items-center justify-between">
+                        <div className="text-[11px] text-slate-400">
+                          Daily Quota: 20 extractions · Concurrent: 2
+                        </div>
+                        <Button
+                          onClick={handleStartExtraction}
+                          disabled={isStartingJob}
+                          leftIcon={isStartingJob ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        >
+                          {isStartingJob ? 'Initiating Extraction...' : 'Fetch & Parse Guidelines'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {/* Submit Action */}
-                <div className="pt-3 flex items-center justify-between">
-                  <div className="text-[11px] text-slate-400">
-                    Daily Quota: 20 extractions · Concurrent: 2
+                {/* Side Info & Recents */}
+                <div className="space-y-4">
+                  {/* Seed Rule Set Shortcut Banner */}
+                  <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-200/80 rounded-2xl p-5">
+                    <div className="flex items-center gap-2 text-teal-800 font-bold text-xs uppercase tracking-wider">
+                      <ShieldCheck className="w-4 h-4 text-[#0F766E]" />
+                      50 Pre-Extracted Journals Ready
+                    </div>
+                    <p className="text-xs text-teal-900 mt-2 leading-relaxed">
+                      All 50 catalog journals across IEEE, Elsevier, Springer, ACM, Wiley, and OUP have pre-extracted document structure, citation, figure, and layout rules ready for instant use.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setActiveTab('rulesets');
+                        setRuleSetFilter('seed');
+                      }}
+                      className="mt-3 text-xs font-bold text-[#0F766E] hover:underline flex items-center gap-1"
+                    >
+                      Browse All 50+ Seed Rule Sets <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <Button
-                    onClick={handleStartExtraction}
-                    disabled={isStartingJob}
-                    leftIcon={isStartingJob ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  >
-                    {isStartingJob ? 'Initiating Extraction...' : 'Fetch & Parse Guidelines'}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Side Info & Recents */}
-              <div className="space-y-4">
-                {/* Seed Rule Set Shortcut Banner */}
-                <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-200/80 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 text-teal-800 font-bold text-xs uppercase tracking-wider">
-                    <ShieldCheck className="w-4 h-4 text-[#0F766E]" />
-                    Built-in Rule Sets Available
-                  </div>
-                  <p className="text-xs text-teal-900 mt-2 leading-relaxed">
-                    Looking for IEEE TPAMI, Nature, Elsevier Neurocomputing, Springer LNCS, or ACM TOG? Hand-verified seed rules are pre-loaded in your library.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setActiveTab('rulesets');
-                      setRuleSetFilter('seed');
-                    }}
-                    className="mt-3 text-xs font-bold text-[#0F766E] hover:underline flex items-center gap-1"
-                  >
-                    Browse Seed Rule Sets <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
 
                 {/* Recent Extractions */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-3">
@@ -966,7 +1268,8 @@ Funding, Conflict of Interest, and Data Availability.
                 </div>
               </div>
             </div>
-          )}
+          );
+          })()}
 
           {/* SUB-STEP 2: PROCESSING / PROGRESS */}
           {extractionSubStep === 'processing' && currentJob && (
@@ -1015,24 +1318,41 @@ Funding, Conflict of Interest, and Data Availability.
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">
-                      {editingRuleSetId ? 'Edit Custom Rule Set' : 'Review & Confirm Extracted Rules'}
-                    </h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl font-bold text-slate-900">
+                        {loadedCatalogRuleSet
+                          ? 'Pre-Extracted Journal Guidelines'
+                          : editingRuleSetId
+                          ? 'Edit Custom Rule Set'
+                          : 'Review & Confirm Extracted Rules'}
+                      </h2>
+                      {loadedCatalogRuleSet && (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200">
+                          {loadedCatalogRuleSet.isSystem || loadedCatalogRuleSet.origin === 'seed'
+                            ? 'Verified Catalog Seed'
+                            : `Custom v${loadedCatalogRuleSet.version}`}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {editingRuleSetId
+                      {loadedCatalogRuleSet
+                        ? 'Inspect all pre-extracted rules across Document Structure, Citations, Figures & Tables, and Submission & Style. Link directly to your project, generate a LaTeX template, or customize and save your own copy.'
+                        : editingRuleSetId
                         ? 'Modify formatting, citation, and submission requirements. Saving creates a new active version.'
                         : 'Verify extracted constraints against publisher grounding quotes. Correct any flagged fields before saving.'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="secondary"
                       onClick={() => {
-                        if (editingRuleSetId) {
+                        if (editingRuleSetId && !loadedCatalogRuleSet) {
                           setEditingRuleSetId(null);
                           setExtractionSubStep('input');
                           setActiveTab('rulesets');
                         } else {
+                          setLoadedCatalogRuleSet(null);
+                          setEditingRuleSetId(null);
                           setExtractionSubStep('input');
                         }
                       }}
@@ -1040,6 +1360,27 @@ Funding, Conflict of Interest, and Data Availability.
                     >
                       Back
                     </Button>
+                    {loadedCatalogRuleSet && selectedProjectId && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleLinkToProject(loadedCatalogRuleSet.id, selectedProjectId)}
+                        leftIcon={<Link2 className="w-4 h-4 text-[#0F766E]" />}
+                      >
+                        Use for Project
+                      </Button>
+                    )}
+                    {loadedCatalogRuleSet && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          syncTemplateStateFromRules(ruleSetName, reviewRules);
+                          setActiveTab('template');
+                        }}
+                        leftIcon={<Download className="w-4 h-4 text-purple-600" />}
+                      >
+                        Generate Template
+                      </Button>
+                    )}
                     <Button
                       onClick={handleConfirmAndSaveRules}
                       disabled={isConfirming}
@@ -1049,6 +1390,8 @@ Funding, Conflict of Interest, and Data Availability.
                         ? 'Saving Rules...'
                         : editingRuleSetId
                         ? 'Save Changes (New Version)'
+                        : loadedCatalogRuleSet
+                        ? 'Save Custom Copy'
                         : 'Save as Rule Set'}
                     </Button>
                   </div>

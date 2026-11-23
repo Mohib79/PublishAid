@@ -1,0 +1,126 @@
+{
+  "name": "Journal of Computer-Mediated Communication Guidelines",
+  "journalTitle": "Journal of Computer-Mediated Communication",
+  "journalIssn": "1083-6101",
+  "sourceUrl": "https://academic.oup.com/jcmc/pages/General_Instructions",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 8000,
+      "minWords": 3000,
+      "wordLimitExcludes": [
+        "references",
+        "tables",
+        "figureCaptions"
+      ],
+      "maxAbstractWords": 200,
+      "abstractStructure": "unstructured",
+      "keywords": {
+        "min": 3,
+        "max": 6
+      },
+      "keywordSeparator": "comma",
+      "maxTitleChars": 150,
+      "requiredSections": [
+        "Abstract",
+        "Keywords",
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusion",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability",
+        "funding",
+        "ethics",
+        "authorContributions",
+        "acknowledgements"
+      ]
+    },
+    "citation": {
+      "style": "APA",
+      "numbered": false,
+      "maxReferences": 75,
+      "notes": "Oxford University Press APA style."
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "Letter",
+      "fontFamily": "Times New Roman",
+      "fontSizePt": 12.0,
+      "fontSizeTitlePt": 16.0,
+      "fontSizeFigureCaptionPt": 9.5,
+      "fontSizeTableCaptionPt": 9.5,
+      "documentClass": "article.cls",
+      "lineSpacing": 2.0,
+      "marginsCm": {
+        "top": 2.54,
+        "bottom": 2.54,
+        "left": 2.54,
+        "right": 2.54
+      },
+      "maxPages": 25
+    },
+    "figures": {
+      "maxFigures": 10,
+      "maxTables": 6,
+      "formats": [
+        "tiff",
+        "eps",
+        "pdf",
+        "png"
+      ],
+      "minDpi": 300
+    },
+    "submission": {
+      "fileFormats": [
+        "docx",
+        "tex",
+        "pdf"
+      ],
+      "reviewType": "double_blind",
+      "templateUrl": "https://academic.oup.com/jcmc/pages/General_Instructions",
+      "coverLetterRequired": true,
+      "highlightsRequired": false,
+      "orcidRequired": true
+    },
+    "articleTypes": [
+      {
+        "name": "Original Research Article",
+        "maxWords": 8000,
+        "maxAbstractWords": 200,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 10,
+        "maxTables": 6,
+        "maxReferences": 75
+      },
+      {
+        "name": "Review Article",
+        "maxWords": 12000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Background",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 12,
+        "maxTables": 8,
+        "maxReferences": 120
+      }
+    ],
+    "defaultArticleType": "Original Research Article"
+  }
+}

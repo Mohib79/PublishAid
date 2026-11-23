@@ -655,7 +655,8 @@ def list_rule_sets(
     scope: Literal["mine", "system", "all"] = "all",
     search: str | None = None,
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=100),
+    page_size: int = Query(default=100, ge=1, le=100),
+    page_size_camel: int | None = Query(default=None, alias="pageSize", ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -663,6 +664,8 @@ def list_rule_sets(
     Lists rule sets visible to the user (mine plus system ones; never another user's).
     Reference: Section 10.13 (GE-RS-22, GE-RS-23).
     """
+    if page_size_camel is not None:
+        page_size = page_size_camel
     offset = (page - 1) * page_size
 
     # Scope condition

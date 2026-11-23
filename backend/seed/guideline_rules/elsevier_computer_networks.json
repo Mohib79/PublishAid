@@ -1,0 +1,146 @@
+{
+  "name": "Computer Networks Guidelines",
+  "journalTitle": "Computer Networks",
+  "journalIssn": "1389-1286",
+  "sourceUrl": "https://www.sciencedirect.com/journal/computer-networks/publish/guide-for-authors",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 9500,
+      "minWords": 3500,
+      "wordLimitExcludes": [
+        "references",
+        "abstract",
+        "appendices"
+      ],
+      "maxAbstractWords": 250,
+      "abstractStructure": "unstructured",
+      "keywords": {
+        "min": 4,
+        "max": 6
+      },
+      "keywordSeparator": "semicolon",
+      "maxTitleChars": 150,
+      "requiredSections": [
+        "Abstract",
+        "Keywords",
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusion",
+        "Data Availability",
+        "Conflict of Interest",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability",
+        "funding",
+        "creditStatement",
+        "generativeAI",
+        "acknowledgements"
+      ]
+    },
+    "citation": {
+      "style": "Elsevier",
+      "numbered": true,
+      "maxReferences": 75,
+      "notes": "Elsevier numbered reference style in square brackets [1] or elsarticle-num."
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "A4",
+      "fontFamily": "Times New Roman",
+      "fontSizePt": 12.0,
+      "fontSizeTitlePt": 16.0,
+      "fontSizeFigureCaptionPt": 10.0,
+      "fontSizeTableCaptionPt": 10.0,
+      "documentClass": "elsarticle.cls",
+      "lineSpacing": 1.5,
+      "marginsCm": {
+        "top": 2.54,
+        "bottom": 2.54,
+        "left": 2.54,
+        "right": 2.54
+      },
+      "maxPages": 22
+    },
+    "figures": {
+      "maxFigures": 12,
+      "maxTables": 8,
+      "formats": [
+        "tiff",
+        "eps",
+        "pdf",
+        "jpg",
+        "png"
+      ],
+      "minDpi": 300
+    },
+    "submission": {
+      "fileFormats": [
+        "docx",
+        "tex",
+        "pdf"
+      ],
+      "reviewType": "single_blind",
+      "templateUrl": "https://www.elsevier.com/researcher/author/policies-and-guidelines/latex-instructions",
+      "coverLetterRequired": true,
+      "highlightsRequired": true,
+      "orcidRequired": true,
+      "highlightCount": 5,
+      "highlightLengthChars": 85
+    },
+    "articleTypes": [
+      {
+        "name": "Original Research Article",
+        "maxWords": 9500,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 12,
+        "maxTables": 8,
+        "maxReferences": 75
+      },
+      {
+        "name": "Review Article",
+        "maxWords": 14000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Background",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 15,
+        "maxTables": 10,
+        "maxReferences": 140
+      },
+      {
+        "name": "Short Communication",
+        "maxWords": 4500,
+        "maxAbstractWords": 150,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 5,
+        "maxTables": 3,
+        "maxReferences": 35
+      }
+    ],
+    "defaultArticleType": "Original Research Article"
+  }
+}

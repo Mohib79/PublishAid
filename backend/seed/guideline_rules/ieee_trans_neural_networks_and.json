@@ -1,0 +1,142 @@
+{
+  "name": "IEEE Transactions on Neural Networks and Learning Systems Guidelines",
+  "journalTitle": "IEEE Transactions on Neural Networks and Learning Systems",
+  "journalIssn": "2162-237X",
+  "sourceUrl": "https://cis.ieee.org/publications/t-neural-networks-and-learning-systems/tnnls-information-for-authors",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 9000,
+      "minWords": 3000,
+      "wordLimitExcludes": [
+        "references",
+        "figureCaptions",
+        "appendices"
+      ],
+      "maxAbstractWords": 250,
+      "abstractStructure": "unstructured",
+      "keywords": {
+        "min": 3,
+        "max": 5
+      },
+      "keywordSeparator": "comma",
+      "maxTitleChars": 150,
+      "requiredSections": [
+        "Abstract",
+        "Keywords",
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusion",
+        "Acknowledgements",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability",
+        "funding",
+        "authorContributions",
+        "generativeAI",
+        "acknowledgements"
+      ]
+    },
+    "citation": {
+      "style": "IEEE",
+      "numbered": true,
+      "maxReferences": 55,
+      "notes": "IEEE numbered citations in square brackets [1] ordered by appearance."
+    },
+    "layout": {
+      "columns": "double",
+      "pageSize": "Letter",
+      "fontFamily": "Times New Roman",
+      "fontSizePt": 10.0,
+      "fontSizeTitlePt": 24.0,
+      "fontSizeFigureCaptionPt": 8.0,
+      "fontSizeTableCaptionPt": 8.0,
+      "documentClass": "IEEEtran.cls",
+      "lineSpacing": 1.0,
+      "marginsCm": {
+        "top": 1.9,
+        "bottom": 2.54,
+        "left": 1.6,
+        "right": 1.6
+      },
+      "maxPages": 12
+    },
+    "figures": {
+      "maxFigures": 12,
+      "maxTables": 6,
+      "formats": [
+        "pdf",
+        "eps",
+        "tiff",
+        "png"
+      ],
+      "minDpi": 300
+    },
+    "submission": {
+      "fileFormats": [
+        "pdf",
+        "tex",
+        "docx"
+      ],
+      "reviewType": "single_blind",
+      "templateUrl": "https://template-selector.ieee.org/",
+      "coverLetterRequired": true,
+      "highlightsRequired": false,
+      "orcidRequired": true
+    },
+    "articleTypes": [
+      {
+        "name": "Regular Paper",
+        "maxWords": 9000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 12,
+        "maxTables": 6,
+        "maxReferences": 55
+      },
+      {
+        "name": "Short Paper",
+        "maxWords": 4500,
+        "maxAbstractWords": 150,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 6,
+        "maxTables": 3,
+        "maxReferences": 30
+      },
+      {
+        "name": "Survey Paper",
+        "maxWords": 12000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Background",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 14,
+        "maxTables": 8,
+        "maxReferences": 100
+      }
+    ],
+    "defaultArticleType": "Regular Paper"
+  }
+}
