@@ -55,7 +55,12 @@ def seed_journals(csv_path: Path = SEED_CSV_PATH, reset: bool = False):
                 title = row.get("journal_title", "").strip()
                 publisher = row.get("publisher", "").strip()
                 issn = row.get("issn", "").strip() or None
-                aims_and_scope = row.get("aims_and_scope", "").strip()
+                aims_and_scope = (
+                    row.get("aims_and_scope", "")
+                    .replace("\\r\\n", "\n")
+                    .replace("\\n", "\n")
+                    .strip()
+                )
 
                 if not title or not publisher or not aims_and_scope:
                     print(f"  [Row {idx}] Skipped: Missing required title, publisher, or aims_and_scope")

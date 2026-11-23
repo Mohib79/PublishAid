@@ -542,7 +542,7 @@ export const JournalComparisonPage: React.FC = () => {
         </div>
       );
     } else if (row.type === 'longtext') {
-      const fullText = String(value);
+      const fullText = String(value).replace(/\\n/g, '\n');
       const isLong = fullText.length > 300;
       const isExpanded = !!expandedScopes[journal.id];
       const shownText = isLong && !isExpanded ? `${fullText.slice(0, 300).trimEnd()}...` : fullText;

@@ -53,15 +53,6 @@ export const JournalFinderPage: React.FC = () => {
   );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
-  const loadSamplePaper = () => {
-    setTitle('Deep Residual Learning for Image Recognition');
-    setAbstract(
-      'Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. We explicitly reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions. Comprehensive empirical evidence shows that these residual networks are easier to optimize and gain accuracy from considerably increased depth.'
-    );
-    setKeywords('deep learning, neural networks, computer vision, residual representations');
-    setValidationError(null);
-  };
-
   const handleClearForm = () => {
     setTitle('');
     setAbstract('');
@@ -341,15 +332,6 @@ export const JournalFinderPage: React.FC = () => {
                   Paper title
                 </label>
                 <div className="flex items-center gap-2.5">
-                  {!title && !abstract && (
-                    <button
-                      type="button"
-                      onClick={loadSamplePaper}
-                      className="text-[11px] font-semibold text-[#0F766E] hover:underline cursor-pointer"
-                    >
-                      + Load CS sample
-                    </button>
-                  )}
                   {(title || abstract || keywords) && (
                     <button
                       type="button"
@@ -492,7 +474,7 @@ export const JournalFinderPage: React.FC = () => {
                   Analyzing manuscript against indexed scopes...
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  Computing SPECTER semantic embeddings and ranking journals across our curated catalog.
+                  Computing asymmetric semantic embeddings and BM25 keyword scores across our curated catalog.
                 </p>
               </div>
             </div>
@@ -613,7 +595,13 @@ export const JournalFinderPage: React.FC = () => {
                               className="w-13 h-13 rounded-full border-2 border-[#0F766E] bg-[#CCFBF1]/30 flex flex-col items-center justify-center shrink-0"
                               title={
                                 journal.rawSimilarity != null
-                                  ? `SPECTER Cosine Similarity: ${journal.rawSimilarity.toFixed(4)}`
+                                  ? [
+                                      `Cosine Similarity: ${journal.rawSimilarity.toFixed(4)}`,
+                                      journal.bm25Score != null ? `BM25 Score: ${journal.bm25Score.toFixed(4)}` : null,
+                                      journal.hybridScore != null ? `Hybrid Score: ${journal.hybridScore.toFixed(4)}` : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' | ')
                                   : undefined
                               }
                             >
@@ -667,8 +655,8 @@ export const JournalFinderPage: React.FC = () => {
                         </div>
 
                         {/* Scope snippet */}
-                        <p className="text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-                          {journal.aimsAndScope}
+                        <p className="text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 leading-relaxed whitespace-pre-line">
+                          {journal.aimsAndScope?.replace(/\\n/g, '\n')}
                         </p>
 
                         {/* Bottom Bar: Metrics & Actions */}

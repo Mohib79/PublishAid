@@ -4,6 +4,8 @@ from typing import Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.embeddings_config import DEFAULT_EMBEDDING_MODEL
+
 # Base backend directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = BASE_DIR / ".env"
@@ -43,12 +45,36 @@ class Settings(BaseSettings):
 
     # Embedding settings
     EMBEDDING_MODEL: str = Field(
-        default="allenai-specter",
+        default=DEFAULT_EMBEDDING_MODEL,
         description="Transformer model name or path for document embeddings.",
     )
     EMBEDDING_DEVICE: str = Field(
         default="cpu",
         description="Device to run embedding model on (cpu or cuda).",
+    )
+    HYBRID_COSINE_WEIGHT: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Weight for dense cosine similarity in hybrid journal ranking.",
+    )
+    HYBRID_BM25_WEIGHT: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Weight for normalized BM25 lexical score in hybrid journal ranking.",
+    )
+    EMBEDDING_CHUNK_TOKENS: int = Field(
+        default=320,
+        ge=64,
+        le=512,
+        description="Window size in tokens for chunking long texts beyond transformer token limits.",
+    )
+    EMBEDDING_CHUNK_OVERLAP: int = Field(
+        default=80,
+        ge=0,
+        le=256,
+        description="Token overlap between consecutive sliding windows.",
     )
 
     # Guideline Extraction settings
