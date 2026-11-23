@@ -1,0 +1,126 @@
+{
+  "name": "Software: Practice and Experience Guidelines",
+  "journalTitle": "Software: Practice and Experience",
+  "journalIssn": "0038-0644",
+  "sourceUrl": "https://onlinelibrary.wiley.com/page/journal/1097024x/homepage/forauthors.html",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 9500,
+      "minWords": 3000,
+      "wordLimitExcludes": [
+        "references",
+        "tables",
+        "figureCaptions"
+      ],
+      "maxAbstractWords": 250,
+      "abstractStructure": "unstructured",
+      "keywords": {
+        "min": 3,
+        "max": 6
+      },
+      "keywordSeparator": "comma",
+      "maxTitleChars": 150,
+      "requiredSections": [
+        "Abstract",
+        "Keywords",
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusion",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability",
+        "funding",
+        "ethics",
+        "authorContributions",
+        "acknowledgements"
+      ]
+    },
+    "citation": {
+      "style": "Vancouver",
+      "numbered": true,
+      "maxReferences": 75,
+      "notes": "Wiley New Journal Design reference style."
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "A4",
+      "fontFamily": "Times New Roman",
+      "fontSizePt": 11.0,
+      "fontSizeTitlePt": 16.0,
+      "fontSizeFigureCaptionPt": 9.5,
+      "fontSizeTableCaptionPt": 9.5,
+      "documentClass": "WileyNJDv5.cls",
+      "lineSpacing": 1.5,
+      "marginsCm": {
+        "top": 2.54,
+        "bottom": 2.54,
+        "left": 2.54,
+        "right": 2.54
+      },
+      "maxPages": 22
+    },
+    "figures": {
+      "maxFigures": 10,
+      "maxTables": 6,
+      "formats": [
+        "tiff",
+        "eps",
+        "pdf",
+        "png"
+      ],
+      "minDpi": 300
+    },
+    "submission": {
+      "fileFormats": [
+        "docx",
+        "tex",
+        "pdf"
+      ],
+      "reviewType": "single_blind",
+      "templateUrl": "https://authorservices.wiley.com/author-resources/Journal-Authors/Prepare/new-journal-design.html",
+      "coverLetterRequired": true,
+      "highlightsRequired": false,
+      "orcidRequired": true
+    },
+    "articleTypes": [
+      {
+        "name": "Original Research Article",
+        "maxWords": 9500,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 10,
+        "maxTables": 6,
+        "maxReferences": 75
+      },
+      {
+        "name": "Review Article",
+        "maxWords": 12000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Background",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 12,
+        "maxTables": 8,
+        "maxReferences": 120
+      }
+    ],
+    "defaultArticleType": "Original Research Article"
+  }
+}

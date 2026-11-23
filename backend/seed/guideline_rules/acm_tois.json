@@ -1,0 +1,140 @@
+{
+  "name": "ACM Transactions on Information Systems (TOIS) Guidelines",
+  "journalTitle": "ACM Transactions on Information Systems (TOIS)",
+  "journalIssn": "1046-8188",
+  "sourceUrl": "https://dl.acm.org/journal/tois/author-guidelines",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 12000,
+      "minWords": 3000,
+      "wordLimitExcludes": [
+        "references",
+        "appendices"
+      ],
+      "maxAbstractWords": 250,
+      "abstractStructure": "unstructured",
+      "keywords": {
+        "min": 3,
+        "max": 8
+      },
+      "keywordSeparator": "comma",
+      "maxTitleChars": 160,
+      "requiredSections": [
+        "Abstract",
+        "Keywords",
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusion",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability",
+        "funding",
+        "authorContributions",
+        "generativeAI",
+        "acknowledgements"
+      ]
+    },
+    "citation": {
+      "style": "ACM",
+      "numbered": true,
+      "maxReferences": 70,
+      "notes": "ACM-Reference-Format numbered citations in square brackets."
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "Letter",
+      "fontFamily": "Linux Libertine",
+      "fontSizePt": 10.0,
+      "fontSizeTitlePt": 14.0,
+      "fontSizeFigureCaptionPt": 9.0,
+      "fontSizeTableCaptionPt": 9.0,
+      "documentClass": "acmart.cls",
+      "lineSpacing": 1.0,
+      "marginsCm": {
+        "top": 2.54,
+        "bottom": 2.54,
+        "left": 2.2,
+        "right": 2.2
+      },
+      "maxPages": 25
+    },
+    "figures": {
+      "maxFigures": 12,
+      "maxTables": 8,
+      "formats": [
+        "pdf",
+        "png",
+        "eps",
+        "svg"
+      ],
+      "minDpi": 300
+    },
+    "submission": {
+      "fileFormats": [
+        "tex",
+        "pdf",
+        "docx"
+      ],
+      "reviewType": "double_blind",
+      "templateUrl": "https://www.acm.org/publications/proceedings-template",
+      "coverLetterRequired": true,
+      "highlightsRequired": false,
+      "orcidRequired": true
+    },
+    "articleTypes": [
+      {
+        "name": "Research Article",
+        "maxWords": 12000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 12,
+        "maxTables": 8,
+        "maxReferences": 70
+      },
+      {
+        "name": "Short Paper",
+        "maxWords": 5000,
+        "maxAbstractWords": 150,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 6,
+        "maxTables": 4,
+        "maxReferences": 35
+      },
+      {
+        "name": "Tutorial and Survey",
+        "maxWords": 18000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Background",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 15,
+        "maxTables": 10,
+        "maxReferences": 160
+      }
+    ],
+    "defaultArticleType": "Research Article"
+  }
+}

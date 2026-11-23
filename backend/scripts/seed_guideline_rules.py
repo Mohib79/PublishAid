@@ -59,6 +59,10 @@ def resolve_journal(db: Session, title: str | None, issn: str | None) -> Journal
         journal = db.scalars(select(Journal).where(Journal.journal_title.ilike(clean_title))).first()
         if journal:
             return journal
+        # Fallback: match ignoring parenthetical abbreviation in journal_title
+        journal = db.scalars(select(Journal).where(Journal.journal_title.ilike(f"{clean_title}%"))).first()
+        if journal:
+            return journal
 
     return None
 
@@ -100,24 +104,36 @@ def seed_guideline_rules(
             journal_id = journal.journal_id if journal else None
 
             # Look for existing system rule set for this journal or name
-            query = select(GuidelineRule).where(
-                GuidelineRule.owner_user_id.is_(None),
-            )
+            existing_rule = None
             if journal_id:
-                query = query.where(GuidelineRule.journal_id == journal_id)
-            else:
-                query = query.where(GuidelineRule.name == data["name"])
+                existing_rule = db.scalars(
+                    select(GuidelineRule).where(
+                        GuidelineRule.owner_user_id.is_(None),
+                        GuidelineRule.journal_id == journal_id,
+                    )
+                ).first()
+            if not existing_rule:
+                existing_rule = db.scalars(
+                    select(GuidelineRule).where(
+                        GuidelineRule.owner_user_id.is_(None),
+                        GuidelineRule.name == data["name"],
+                    )
+                ).first()
 
-            existing_rule = db.scalars(query).first()
+            prov_payload = data.get("provenance")
+            if not isinstance(prov_payload, dict):
+                prov_payload = {"seeded": True, "sourceFile": file_path.name}
 
             if existing_rule:
                 existing_rule.name = data["name"]
+                if journal_id and existing_rule.journal_id is None:
+                    existing_rule.journal_id = journal_id
                 existing_rule.source_url = data.get("sourceUrl")
                 existing_rule.rules = data["rules"]
                 existing_rule.schema_version = data.get("schemaVersion", 1)
                 existing_rule.is_active = True
                 existing_rule.origin = "seed"
-                existing_rule.provenance = {"seeded": True, "sourceFile": file_path.name}
+                existing_rule.provenance = prov_payload
             else:
                 new_rule = GuidelineRule(
                     owner_user_id=None,
@@ -127,7 +143,7 @@ def seed_guideline_rules(
                     schema_version=data.get("schemaVersion", 1),
                     source_url=data.get("sourceUrl"),
                     rules=data["rules"],
-                    provenance={"seeded": True, "sourceFile": file_path.name},
+                    provenance=prov_payload,
                     version=1,
                     is_active=True,
                     lineage_id=None,

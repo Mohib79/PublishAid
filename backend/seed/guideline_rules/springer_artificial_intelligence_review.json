@@ -1,0 +1,141 @@
+{
+  "name": "Artificial Intelligence Review Guidelines",
+  "journalTitle": "Artificial Intelligence Review",
+  "journalIssn": "0269-2821",
+  "sourceUrl": "https://link.springer.com/journal/10462/submission-guidelines",
+  "schemaVersion": 1,
+  "rules": {
+    "schemaVersion": 1,
+    "general": {
+      "maxWords": 14000,
+      "minWords": 3500,
+      "wordLimitExcludes": [
+        "references",
+        "appendices"
+      ],
+      "maxAbstractWords": 250,
+      "abstractStructure": "unstructured",
+      "keywords": {
+        "min": 4,
+        "max": 6
+      },
+      "keywordSeparator": "comma",
+      "maxTitleChars": 160,
+      "requiredSections": [
+        "Abstract",
+        "Keywords",
+        "Introduction",
+        "Background",
+        "Discussion",
+        "Conclusion",
+        "References"
+      ],
+      "requiredStatements": [
+        "conflictOfInterest",
+        "dataAvailability",
+        "funding",
+        "ethics",
+        "authorContributions",
+        "consentForPublication",
+        "generativeAI"
+      ]
+    },
+    "citation": {
+      "style": "APA",
+      "numbered": false,
+      "maxReferences": 140,
+      "notes": "Springer Nature sn-jnl reference style."
+    },
+    "layout": {
+      "columns": "single",
+      "pageSize": "A4",
+      "fontFamily": "Times New Roman",
+      "fontSizePt": 10.0,
+      "fontSizeTitlePt": 16.0,
+      "fontSizeFigureCaptionPt": 9.0,
+      "fontSizeTableCaptionPt": 9.0,
+      "documentClass": "sn-jnl.cls",
+      "lineSpacing": 1.5,
+      "marginsCm": {
+        "top": 2.5,
+        "bottom": 2.5,
+        "left": 2.5,
+        "right": 2.5
+      },
+      "maxPages": 30
+    },
+    "figures": {
+      "maxFigures": 12,
+      "maxTables": 8,
+      "formats": [
+        "eps",
+        "pdf",
+        "png",
+        "tiff",
+        "jpg"
+      ],
+      "minDpi": 300
+    },
+    "submission": {
+      "fileFormats": [
+        "tex",
+        "docx",
+        "pdf"
+      ],
+      "reviewType": "single_blind",
+      "templateUrl": "https://www.springernature.com/gp/authors/campaigns/latex-author-support",
+      "coverLetterRequired": false,
+      "highlightsRequired": false,
+      "orcidRequired": true
+    },
+    "articleTypes": [
+      {
+        "name": "Regular Article",
+        "maxWords": 14000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 12,
+        "maxTables": 8,
+        "maxReferences": 140
+      },
+      {
+        "name": "Short Article",
+        "maxWords": 4500,
+        "maxAbstractWords": 150,
+        "requiredSections": [
+          "Introduction",
+          "Methods",
+          "Results",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 6,
+        "maxTables": 4,
+        "maxReferences": 35
+      },
+      {
+        "name": "Survey Article",
+        "maxWords": 14000,
+        "maxAbstractWords": 250,
+        "requiredSections": [
+          "Introduction",
+          "Background",
+          "Discussion",
+          "Conclusion",
+          "References"
+        ],
+        "maxFigures": 15,
+        "maxTables": 10,
+        "maxReferences": 140
+      }
+    ],
+    "defaultArticleType": "Survey Article"
+  }
+}
